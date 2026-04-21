@@ -1,0 +1,2 @@
+Flask
+gunicorn # Aunque Passenger lo gestiona, a veces es útil tenerlo

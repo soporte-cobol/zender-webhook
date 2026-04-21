@@ -1,0 +1,2 @@
+SyntaxError: Non-UTF-8 code starting with '\xf1' in file /mnt/jupiter/waonline/public_html/zender-webhook/app.py on line 8, but no encoding declared; see https://python.org/dev/peps/pep-0263/ for details
+SyntaxError: Non-UTF-8 code starting with '\xf1' in file /mnt/jupiter/waonline/public_html/zender-webhook/app.py on line 8, but no encoding declared; see https://python.org/dev/peps/pep-0263/ for details

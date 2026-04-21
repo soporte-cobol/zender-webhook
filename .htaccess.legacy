@@ -1,0 +1,19 @@
+# --- CONFIGURACIÓN DE PROXY AGRESIVA CON ANULACIÓN DE MANEJADORES ---
+
+# Asegura que el modulo de reescritura este activo
+<IfModule mod_rewrite>
+    RewriteEngine On
+    
+    # Esta regla anula cualquier manejo de scripts (como Passenger/LSAPI) 
+    # y asegura que el tráfico sea manejado por las reglas de abajo.
+    RewriteRule ^ - [E=LITESPEED_DISPATCH:n]
+    
+    # Regla de Proxy Inverso: 
+    # Captura TODAS las peticiones a la carpeta (^) y las reenvía a la raíz (/) 
+    # de nuestro servidor Gunicorn interno.
+    # [L,P] = Last (última regla) y Proxy
+    RewriteRule ^.*$ http://127.0.0.1:5001/ [L,P]
+</IfModule>
+
+# --- PREVENCIÓN DE ACCESO AL DIRECTORIO (Para que no muestre el Index of) ---
+Options -Indexes

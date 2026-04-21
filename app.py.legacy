@@ -1,0 +1,60 @@
+import os
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+# --- Configuracion de la Tienda ---
+# Quitamos emojis de las variables internas para evitar errores de codificacion
+INFO_BASE = "Somos importadores directos con 5 años de experiencia. Nuestra sede esta en Bogota."
+INFO_ENVIO = "Realizamos envios a nivel nacional con Pago Contra Entrega. Pagas al recibir."
+
+def generate_store_response(category=None, specific_product=None):
+    category = category.lower().strip() if category else "general"
+    
+    catalog = {
+        "hogar": "En nuestra seccion de Hogar, tenemos productos para organizar y decorar tu casa.",
+        "cuidado_personal": "En Cuidado Personal tenemos dispositivos de belleza y salud con garantia.",
+        "tecnologia": "Como importadores de Tecnologia, traemos lo ultimo en gadgets y accesorios.",
+        "herramientas": "Nuestras herramientas cuentan con ficha tecnica y garantia de potencia.",
+        "videojuegos": "En Videojuegos tenemos accesorios para consolas y PC gaming.",
+        "general": "Tenemos productos en Hogar, Tecnologia y mas. ¿Que categoria te interesa?"
+    }
+
+    if specific_product:
+        res = f"Sobre el {specific_product}, es de los mas solicitados. ¿Quieres ver la ficha tecnica?"
+    else:
+        res = catalog.get(category, catalog["general"])
+
+    return f"{INFO_BASE} {res} {INFO_ENVIO}"
+
+@app.route('/zender-webhook', methods=['POST'])
+def zender_webhook():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data received"}), 400
+
+        function_call = data.get('call', {})
+        function_name = function_call.get('name')
+        function_args = function_call.get('args', {})
+
+        if function_name == "getProductInfo":
+            cat = function_args.get("category")
+            prod = function_args.get("specific_product")
+            msg = generate_store_response(cat, prod)
+            return jsonify({"fulfillmentText": msg})
+            
+        elif function_name == "getShippingInfo":
+            city = function_args.get("city", "tu ciudad")
+            time = "1 a 2 dias" if "bogota" in city.lower() else "3 a 5 dias"
+            msg = f"Tenemos cobertura en {city} con pago contra entrega. Llega en {time}."
+            return jsonify({"fulfillmentText": msg})
+
+        return jsonify({"fulfillmentText": "Hola, ¿en que puedo ayudarte hoy?"})
+
+    except Exception as e:
+        return jsonify({"fulfillmentText": "Error interno en el servidor."}), 500
+
+if __name__ == '__main__':
+    # Importante: host 0.0.0.0 para que sea accesible externamente
+    app.run(host='0.0.0.0', port=5001)

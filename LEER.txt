@@ -1,0 +1,16 @@
+Este proyecto ya tiene la guia completa en:
+
+README.md
+
+Ahi encontraras:
+
+- dependencias
+- variables de entorno
+- como sacar cada token
+- como configurar Zender
+- como configurar WooCommerce
+- como configurar descuentos, categorias y envio
+- como probar todo paso a paso
+- como instalar Python si nunca lo has usado
+
+Si vas a publicarlo, empieza por leer README.md completo.

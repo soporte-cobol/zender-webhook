@@ -1,0 +1,14 @@
+{
+  "basis": "current_price",
+  "tiers": [
+    {
+      "min_qty": 2,
+      "max_qty": 2,
+      "discount_pct": 5
+    },
+    {
+      "min_qty": 3,
+      "discount_pct": 10
+    }
+  ]
+}
