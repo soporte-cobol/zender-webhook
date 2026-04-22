@@ -1,7 +1,0 @@
-nohup: ignoring input
-[2025-10-12 19:16:36 -0500] [2478131] [INFO] Starting gunicorn 23.0.0
-[2025-10-12 19:16:36 -0500] [2478131] [INFO] Listening at: http://0.0.0.0:5000 (2478131)
-[2025-10-12 19:16:36 -0500] [2478131] [INFO] Using worker: sync
-[2025-10-12 19:16:36 -0500] [2478133] [INFO] Booting worker with pid: 2478133
-[2025-10-12 20:41:01 -0500] [2478133] [WARNING] Invalid request from ip=162.142.125.220: Invalid HTTP Version: (2, 0)
-[2025-10-12 20:41:06 -0500] [2478133] [WARNING] Invalid request from ip=162.142.125.220: Invalid HTTP Version: (2, 0)

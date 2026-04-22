@@ -14,7 +14,7 @@ import unicodedata
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 
 app = Flask(__name__)
 
@@ -1998,10 +1998,190 @@ def valid_secret(secret):
     return bool(secret) and hmac.compare_digest(str(secret), WEBHOOK_SECRET)
 
 
+def prefers_html_response():
+    accept = (request.headers.get('Accept') or '').lower()
+    return 'text/html' in accept or 'application/xhtml+xml' in accept
+
+
+def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
+    safe_title = html.escape(title)
+    safe_subtitle = html.escape(subtitle)
+    safe_endpoint = html.escape(endpoint_path)
+    banner = (
+        "__        __   _     _                 _    \n"
+        "\\ \\      / /__| |__ | |__   ___   ___ | | __\n"
+        " \\ \\ /\\ / / _ \\ '_ \\| '_ \\ / _ \\ / _ \\| |/ /\n"
+        "  \\ V  V /  __/ |_) | | | | (_) | (_) |   < \n"
+        "   \\_/\\_/ \\___|_.__/|_| |_|\\___/ \\___/|_|\\_\\"
+    )
+    safe_banner = html.escape(banner)
+    page = f"""<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{safe_title}</title>
+  <style>
+    :root {{
+      --bg: #08111f;
+      --panel: rgba(9, 18, 34, 0.92);
+      --line: rgba(255, 255, 255, 0.10);
+      --text: #ecf7ff;
+      --muted: #9ab0c3;
+      --accent: {accent};
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      font-family: Consolas, "Courier New", monospace;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(55, 240, 194, 0.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(83, 161, 255, 0.16), transparent 26%),
+        linear-gradient(180deg, #050b15 0%, #0a1322 100%);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }}
+    .panel {{
+      width: min(920px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }}
+    .header {{
+      padding: 22px 24px 12px;
+      border-bottom: 1px solid var(--line);
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }}
+    .dot {{
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 18px var(--accent);
+    }}
+    .content {{
+      padding: 24px;
+      display: grid;
+      gap: 22px;
+    }}
+    pre {{
+      margin: 0;
+      padding: 20px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(0, 0, 0, 0.24);
+      color: var(--accent);
+      font-size: clamp(11px, 1.8vw, 16px);
+      line-height: 1.28;
+    }}
+    h1 {{
+      margin: 0;
+      font-size: clamp(28px, 5vw, 46px);
+      line-height: 1.04;
+    }}
+    p {{
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }}
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }}
+    .card {{
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.03);
+    }}
+    .label {{
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }}
+    .value {{
+      font-size: 16px;
+      font-weight: 700;
+      word-break: break-word;
+    }}
+    code {{
+      color: var(--accent);
+      font-size: 14px;
+    }}
+    .footer {{
+      padding: 0 24px 24px;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <div class="header">
+      <span class="badge"><span class="dot"></span>Servicio activo</span>
+    </div>
+    <div class="content">
+      <pre>{safe_banner}</pre>
+      <div>
+        <h1>{safe_title}</h1>
+        <p>{safe_subtitle}</p>
+      </div>
+      <div class="grid">
+        <section class="card">
+          <span class="label">Estado</span>
+          <div class="value">OK</div>
+        </section>
+        <section class="card">
+          <span class="label">Endpoint</span>
+          <div class="value"><code>{safe_endpoint}</code></div>
+        </section>
+        <section class="card">
+          <span class="label">Método esperado</span>
+          <div class="value">POST</div>
+        </section>
+      </div>
+    </div>
+    <div class="footer">
+      Si ves esta pantalla en el navegador, la app está encendida y lista para recibir webhooks.
+    </div>
+  </main>
+</body>
+</html>"""
+    return Response(page, mimetype='text/html')
+
+
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/zender-webhook', methods=['GET', 'POST'])
 def zender_webhook():
     if request.method == 'GET':
+        if prefers_html_response():
+            return render_status_page(
+                'Zender WooCommerce Bot',
+                'La app está corriendo y lista para recibir mensajes de WhatsApp desde Zender.',
+                '/zender-webhook',
+            )
         return jsonify({'status': 'ok', 'message': 'Zender WooCommerce bot is running.'})
     payload = parse_payload()
     app.logger.info('Incoming payload type=%s data=%s', payload.get('type'), payload.get('data'))
@@ -2031,6 +2211,13 @@ def zender_webhook():
 @app.route('/woocommerce-webhook', methods=['GET', 'POST'])
 def woocommerce_webhook():
     if request.method == 'GET':
+        if prefers_html_response():
+            return render_status_page(
+                'WooCommerce Webhook',
+                'El endpoint está listo para recibir actualizaciones de pedidos y notas al cliente.',
+                '/woocommerce-webhook',
+                accent='#63a9ff',
+            )
         return jsonify({'status': 'ok', 'message': 'WooCommerce webhook endpoint is running.'})
     raw_body = request.get_data() or b''
     payload = parse_woocommerce_payload()

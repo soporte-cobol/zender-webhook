@@ -2,3 +2,10 @@
 __pycache__/
 *.pyc
 tmp/*.db
+venv/
+virtualenv/
+tmp/restart.txt
+nohup.out
+stderr.log
+webhook_debug.log
+webhook_debug.log.*

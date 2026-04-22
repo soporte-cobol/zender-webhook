@@ -118,6 +118,49 @@ python -m venv venv
 - [`assenger_wsgi.py`](assenger_wsgi.py)
   Archivo gemelo de compatibilidad, por si tu hosting lo usa por configuración previa.
 
+- [`deploy_cpanel.sh`](deploy_cpanel.sh)
+  Script de despliegue para cPanel. Sirve para copiar el código del repositorio hacia la carpeta viva sin tocar tu `.env`, sin tocar la base en `tmp/` y corrigiendo permisos al final.
+
+---
+
+## 5. Desplegar en cPanel sin memorizar comandos raros
+
+Si ya tienes tu repositorio clonado en el servidor dentro de una ruta como:
+
+```bash
+/mnt/jupiter/waonline/repositories/zender-webhook
+```
+
+y tu app viva está en:
+
+```bash
+/mnt/jupiter/waonline/public_html/zender-webhook
+```
+
+entonces puedes desplegar con un solo comando:
+
+```bash
+cd /mnt/jupiter/waonline/repositories/zender-webhook
+bash deploy_cpanel.sh
+```
+
+Ese script hace esto por ti:
+
+- hace `git pull`
+- copia el código a la carpeta viva
+- no toca `.env`
+- no toca `tmp/`
+- no toca `venv/` ni `virtualenv/`
+- corrige permisos para que Apache y Passenger no den `403`
+- reinicia la app tocando `tmp/restart.txt`
+
+Si algún día quieres omitir el `git pull` y solo copiar lo que ya tienes en el repo, puedes hacer:
+
+```bash
+cd /mnt/jupiter/waonline/repositories/zender-webhook
+SKIP_PULL=1 bash deploy_cpanel.sh
+```
+
 - [`requeriments.txt`](requeriments.txt)
   Lista de dependencias de Python.
 
