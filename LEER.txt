@@ -1,16 +1,17 @@
-Este proyecto ya tiene la guia completa en:
+¡Hola! Bienvenido al Bot Inteligente para Zender + WooCommerce 🤖✨
 
-README.md
+Este proyecto ha evolucionado para ser una solución de ventas "Plug & Play". 
+Ahora cuenta con un motor de Inteligencia Artificial (Gemini) que genera respuestas naturales y persuasivas, y un carrito de compras avanzado que soporta múltiples productos simultáneos.
 
-Ahi encontraras:
+Para comenzar, por favor dirígete al archivo principal de documentación:
+👉 README.md
 
-- dependencias
-- variables de entorno
-- como sacar cada token
-- como configurar Zender
-- como configurar WooCommerce
-- como configurar descuentos, categorias y envio
-- como probar todo paso a paso
-- como instalar Python si nunca lo has usado
+En el README encontrarás instrucciones paso a paso, redactadas de manera sencilla (incluso si no tienes experiencia previa), sobre:
 
-Si vas a publicarlo, empieza por leer README.md completo.
+- 📦 Instalación y dependencias.
+- ⚙️ Configuración de variables de entorno (incluyendo tu API Key de IA).
+- 🔌 Cómo conectar los Webhooks de Zender y WooCommerce.
+- 💰 Configuración dinámica de descuentos, categorías y envíos.
+- 🚀 Cómo desplegar en tu hosting (cPanel).
+
+¡Mucho éxito con tus ventas en piloto automático!
