@@ -2,8 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="${REPO_DIR:-$SCRIPT_DIR}"
-LIVE_DIR="${LIVE_DIR:-/mnt/jupiter/waonline/public_html/zender-webhook}"
+
+if [ -f "$SCRIPT_DIR/.env" ]; then
+  export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
+fi
+
+REPO_DIR="${CPANEL_REPO_DIR:-$SCRIPT_DIR}"
+LIVE_DIR="${CPANEL_LIVE_DIR:-/mnt/jupiter/waonline/public_html/zender-webhook}"
 BRANCH="${BRANCH:-main}"
 SKIP_PULL="${SKIP_PULL:-0}"
 

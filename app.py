@@ -1,4 +1,4 @@
-﻿import hmac
+import hmac
 import base64
 import hashlib
 import html
@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 import requests
 from flask import Flask, Response, jsonify, request
+import google.generativeai as genai
 
 app = Flask(__name__)
 
@@ -60,6 +61,9 @@ WC_UPSELL_LIMIT = max(0, int(os.getenv('WC_UPSELL_LIMIT', '2')))
 DEFAULT_COUNTRY = os.getenv('DEFAULT_COUNTRY', 'CO')
 PRICING_RULES_URL = os.getenv('PRICING_RULES_URL', '').strip()
 PRICING_RULES_CACHE_SECONDS = int(os.getenv('PRICING_RULES_CACHE_SECONDS', '300'))
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 DB_LOCK = threading.Lock()
 CATEGORY_CACHE = {}
 PRICING_RULES_CACHE = {'expires_at': 0, 'value': None}
@@ -131,83 +135,7 @@ QUERY_PREFIX_PATTERNS = [
     r'^(me interesa(n)?|estoy interesado(a)? en|estoy buscando|quiero|quisiera|busco|necesito)\b',
     r'^(tienes|tienen)\b',
 ]
-CATALOG_PRODUCT_HINTS = [
-    'Extractor de Jugos',
-    'Estufa Electrica de Mesa',
-    'Estufa Electrica de Mesa 2 Puestos',
-    'Almohadas Ergonomicas',
-    'Maquina de hacer palomitas',
-    'Set de Cocina 19 Utensilios',
-    'Aspiradora de Mano Potente',
-    'Panalera Cuna Premium',
-    'Canastilla de Esponjas para Platos',
-    'Pocillo tipo Termo Stanley',
-    'Licuadora Portatil',
-    'Mini Wafflera',
-    'Prensa Cafetera Francesa',
-    'Termo para Camping',
-    'Set de Especieros',
-    'Portacajonera Portatil',
-    'Afila Cuchillos',
-    'Maquina para hacer Donas',
-    'Hervidor de Huevos Electrico',
-    'Bascula Digital',
-    'Purificador de Agua',
-    'Organizador de Pared',
-    'Limpia Vidros Magnetico',
-    'Android TV Stick',
-    'Trampa LED Anti Mosquitos',
-    'Intercomunicador Moto Q58 MAX',
-    'Proyector HD con Control Remoto',
-    'Adaptador Inalambrico CarPlay & Android Auto 2 en 1',
-    'Kit de 2 Walkie Talkies Baofeng BF-888S',
-    'Parlante para Ducha',
-    'Altavoz LED con Cargador Inalambrico',
-    'Secador de Cabello Profesional',
-    'Masaje Gun + Accesorios',
-    'Cepillo Electrico Multifuncion 5 en 1',
-    'Combo Belleza 3 en 1',
-    'Cepillo Alisador 5 Niveles',
-    'Combo Cabello Perfecto',
-    'Masajeador Facial Rejuvenecedor',
-    'Kit Fortalecedor de Mano',
-    'Cepillo Dental Electrico Sonico Recargable',
-    'Compresor Portatil Digital Inalambrico Recargable',
-    'Hidrolavadora Boquilla 6 En 1 Inalambrica Portatil Dos Baterias',
-    'Combo Herramientas Taladro DeWalt Inalambrico 34 Piezas',
-    'Taladro Inalambrico 48V Con Kit Destornillador 2 Baterias',
-    'Combo Entretenimiento Proyector + 2 Mandos Inalambricos',
-    'Rodillera Termica Electrica',
-    'Oximetro Digital',
-    'Oximetro Digital Pediatrico',
-    'Balanza Digital Inteligente',
-]
-CATALOG_QUERY_ALIASES = {
-    'palomitera': 'Maquina de hacer palomitas',
-    'popcorn': 'Maquina de hacer palomitas',
-    'stanley': 'Pocillo tipo Termo Stanley',
-    'termo stanley': 'Pocillo tipo Termo Stanley',
-    'speaker ducha': 'Parlante para Ducha',
-    'parlante ducha': 'Parlante para Ducha',
-    'walkie': 'Kit de 2 Walkie Talkies Baofeng BF-888S',
-    'walkie talkie': 'Kit de 2 Walkie Talkies Baofeng BF-888S',
-    'walkie talkies': 'Kit de 2 Walkie Talkies Baofeng BF-888S',
-    'baofeng': 'Kit de 2 Walkie Talkies Baofeng BF-888S',
-    'dewalt': 'Combo Herramientas Taladro DeWalt Inalambrico 34 Piezas',
-    'taladro dewalt': 'Combo Herramientas Taladro DeWalt Inalambrico 34 Piezas',
-    'carplay': 'Adaptador Inalambrico CarPlay & Android Auto 2 en 1',
-    'android auto': 'Adaptador Inalambrico CarPlay & Android Auto 2 en 1',
-    'medidor de oxigeno': 'Oximetro Digital',
-    'saturacion': 'Oximetro Digital',
-    'saturacion oxigeno': 'Oximetro Digital',
-    'oximetro pediatrico': 'Oximetro Digital Pediatrico',
-    'pesa': 'Bascula Digital',
-    'bascula': 'Bascula Digital',
-    'balanza': 'Balanza Digital Inteligente',
-    'rodillera': 'Rodillera Termica Electrica',
-    'hidrolavadora': 'Hidrolavadora Boquilla 6 En 1 Inalambrica Portatil Dos Baterias',
-    'compresor': 'Compresor Portatil Digital Inalambrico Recargable',
-}
+
 CUSTOMER_SERVICE_TOKENS = {
     'precio', 'precios', 'valor', 'vale', 'cuesta', 'costo', 'costos', 'envio', 'entrega', 'domicilio',
     'catalogo', 'producto', 'productos', 'comprar', 'compra', 'quiero', 'interesa', 'pedido', 'pedir',
@@ -276,6 +204,7 @@ def init_db():
             cur.execute('CREATE TABLE IF NOT EXISTS conversations (phone TEXT PRIMARY KEY, state TEXT NOT NULL, data TEXT NOT NULL, updated_at INTEGER NOT NULL)')
             cur.execute('CREATE TABLE IF NOT EXISTS processed_events (event_key TEXT PRIMARY KEY, processed_at INTEGER NOT NULL)')
             cur.execute('CREATE TABLE IF NOT EXISTS order_tracking (order_id TEXT PRIMARY KEY, last_status TEXT NOT NULL, last_note_key TEXT NOT NULL, updated_at INTEGER NOT NULL)')
+            cur.execute('CREATE TABLE IF NOT EXISTS products_cache (id TEXT PRIMARY KEY, name TEXT NOT NULL, aliases TEXT NOT NULL)')
             connection.commit()
         finally:
             connection.close()
@@ -311,9 +240,7 @@ def default_session(phone):
         'category': None,
         'last_products': [],
         'last_variations': [],
-        'product': None,
-        'variation': None,
-        'quantity': 1,
+        'cart': [],
         'checkout': {'customer_phone': phone, 'full_name': '', 'city': '', 'address_1': '', 'address_2': '', 'notes': ''},
     }
 
@@ -880,6 +807,14 @@ def is_menu_request(message):
     return bool(message_tokens) and all(token in MENU_FILLER_TOKENS for token in message_tokens)
 
 
+def get_all_products_cache():
+    with DB_LOCK:
+        connection = db_conn()
+        try:
+            return connection.execute('SELECT name, aliases FROM products_cache').fetchall()
+        finally:
+            connection.close()
+
 def has_sales_signal(message):
     text = clean(message)
     normalized = norm(text)
@@ -895,14 +830,18 @@ def has_sales_signal(message):
         return True
     compact = compact_search_query(text)
     compact_text = norm(compact)
-    for alias in CATALOG_QUERY_ALIASES:
-        alias_text = norm(alias)
-        if alias_text and (alias_text in normalized or alias_text in compact_text):
+    for row in get_all_products_cache():
+        try:
+            aliases = json.loads(row['aliases'])
+        except:
+            aliases = []
+        name_norm = norm(row['name'])
+        if name_norm and (name_norm in normalized or name_norm in compact_text):
             return True
-    for hint in CATALOG_PRODUCT_HINTS:
-        hint_text = norm(hint)
-        if hint_text and (hint_text in normalized or hint_text in compact_text):
-            return True
+        for alias in aliases:
+            alias_text = norm(alias)
+            if alias_text and (alias_text in normalized or alias_text in compact_text):
+                return True
     return False
 
 
@@ -953,19 +892,26 @@ def catalog_alias_candidates(message):
         return []
 
     alias_hits = []
-    for alias, target in CATALOG_QUERY_ALIASES.items():
-        alias_text = norm(alias)
-        alias_tokens = tokens(alias_text)
-        if alias_text in text or alias_text in compact:
-            alias_hits.append(target)
-            continue
-        if alias_tokens and all(token in text for token in alias_tokens):
-            alias_hits.append(target)
-
     scored_hints = []
-    for hint in CATALOG_PRODUCT_HINTS:
-        hint_text = norm(hint)
-        hint_tokens = set(tokens(hint))
+    
+    for row in get_all_products_cache():
+        target = row['name']
+        try:
+            aliases = json.loads(row['aliases'])
+        except:
+            aliases = []
+            
+        for alias in aliases:
+            alias_text = norm(alias)
+            alias_tokens = tokens(alias_text)
+            if alias_text and (alias_text in text or alias_text in compact):
+                alias_hits.append(target)
+                continue
+            if alias_tokens and all(token in text for token in alias_tokens):
+                alias_hits.append(target)
+                
+        hint_text = norm(target)
+        hint_tokens = set(tokens(target))
         overlap = [token for token in query_tokens if token in hint_tokens]
         if compact and (compact in hint_text or hint_text in compact):
             score = 100 + len(overlap)
@@ -973,7 +919,7 @@ def catalog_alias_candidates(message):
             score = len(overlap) * 10 + sum(len(token) for token in overlap)
         else:
             continue
-        scored_hints.append((score, hint))
+        scored_hints.append((score, target))
 
     scored_hints.sort(key=lambda item: item[0], reverse=True)
     hint_hits = [hint for _, hint in scored_hints[:3]]
@@ -1266,33 +1212,51 @@ def checkout_edit_hint():
     return "✏️ Si quieres ajustar tu pedido, puedes escribir por ejemplo 'quiero 3 unidades', 'súbelo a 5' o 'no quiero este producto'."
 
 
+def cart_totals(cart, city=''):
+    subtotal = Decimal('0')
+    savings = Decimal('0')
+    for item in cart:
+        pricing = pricing_for(item['product'], variation=item['variation'], quantity=item['quantity'])
+        subtotal += pricing['total']
+        savings += pricing['savings']
+    
+    shipping = shipping_for_city(city, subtotal)
+    grand_total = money_round(subtotal + shipping['cost'])
+    return subtotal, savings, shipping, grand_total
+
 def checkout_summary_text(session, city=''):
-    product = session.get('product')
-    if not product:
-        return ''
-    variation = session.get('variation')
-    quantity = session.get('quantity', 1)
-    pricing, shipping, grand_total = quote_totals(product, variation=variation, quantity=quantity, city=city)
-    lines = ['🧾 Resumen del pedido:']
-    lines.append(f"📦 Producto: {product['name']}")
-    if variation and variation.get('label'):
-        lines.append(f"🎨 Variación: {variation['label']}")
-    lines.append(f"🔢 Cantidad: {quantity}")
-    if pricing['discount_pct'] > 0:
-        lines.append(f"🏷️ Precio por unidad con descuento: {price_label(pricing['discounted_unit'])}")
-        lines.append(f"📚 Subtotal antes del descuento: {price_label(pricing['subtotal'])}")
-        lines.append(f"🛍️ Subtotal productos: {price_label(pricing['total'])}")
-        if pricing['savings'] > 0:
-            lines.append(f"✨ Ahorro: {price_label(pricing['savings'])}")
-    else:
-        lines.append(f"🏷️ Precio por unidad: {price_label(pricing['base_unit'])}")
-        lines.append(f"🛍️ Subtotal productos: {price_label(pricing['total'])}")
+    cart = session.get('cart', [])
+    if not cart:
+        return '🛒 Tu carrito está vacío.'
+        
+    subtotal, savings, shipping, grand_total = cart_totals(cart, city)
+    
+    lines = ['🛒 Tu carrito de compras:']
+    lines.append('--------')
+    for item in cart:
+        product = item['product']
+        variation = item['variation']
+        qty = item['quantity']
+        pricing = pricing_for(product, variation=variation, quantity=qty)
+        
+        name = product['name']
+        if variation and variation.get('label'):
+            name += f" ({variation['label']})"
+            
+        lines.append(f"{qty}x {name} - {price_label(pricing['total'])}")
+        
+    lines.append('--------')
+    lines.append(f"🛍️ Subtotal productos: {price_label(subtotal)}")
+    if savings > 0:
+        lines.append(f"✨ Ahorro total: {price_label(savings)}")
+        
     if city:
         if shipping['free_shipping']:
             lines.append('🚚 Envío: gratis')
         else:
             lines.append(f"🚚 Envío: {price_label(shipping['cost'])} ({shipping['method_title']})")
         lines.append(f"💰 Total estimado: {price_label(grand_total)}")
+        
     return '\n'.join(lines)
 
 
@@ -1315,59 +1279,70 @@ def prompt_after_quantity_update(state, session):
 
 
 def remove_current_item(phone, hint, session):
-    session['product'] = None
-    session['variation'] = None
-    session['quantity'] = 1
-    session['checkout']['full_name'] = ''
-    session['checkout']['city'] = ''
-    session['checkout']['address_1'] = ''
-    session['checkout']['address_2'] = ''
-    session['checkout']['notes'] = ''
-    if session.get('last_products'):
-        session['state'] = 'pick_product'
+    cart = session.get('cart', [])
+    product = session.get('product')
+    
+    if cart and product:
+        cart = [item for item in cart if item['product']['id'] != product['id']]
+        session['cart'] = cart
+        
+    if not cart:
+        session['product'] = None
+        session['variation'] = None
+        session['checkout']['full_name'] = ''
+        session['checkout']['city'] = ''
+        session['checkout']['address_1'] = ''
+        session['checkout']['address_2'] = ''
+        session['checkout']['notes'] = ''
+        if session.get('last_products'):
+            session['state'] = 'pick_product'
+            save_session(phone, session)
+            send_message(phone, hint, list_text('✅ Quité ese producto de tu pedido. Estos son los productos que estabas viendo:', session['last_products']))
+            return
+        reset_session(phone)
+        send_message(phone, hint, menu_text())
+    else:
+        # Cart still has items
+        session['product'] = cart[-1]['product']
+        session['variation'] = cart[-1]['variation']
+        session['state'] = 'confirm_buy'
         save_session(phone, session)
-        send_message(phone, hint, list_text('✅ Quité ese producto de tu pedido. Estos son los productos que estabas viendo:', session['last_products']))
-        return
-    reset_session(phone)
-    send_message(phone, hint, menu_text())
+        send_message(phone, hint, '✅ Quité ese producto de tu carrito.\n\n' + checkout_summary_text(session, session.get('checkout', {}).get('city', '')))
 
 
 def post_purchase_message(session, order_number, city=''):
-    product = session.get('product')
-    if not product:
+    cart = session.get('cart', [])
+    if not cart:
         return f"🙏 Gracias por tu compra. Tu pedido #{order_number} ya fue creado."
-    variation = session.get('variation')
-    pricing, shipping, grand_total = quote_totals(
-        product,
-        variation=variation,
-        quantity=session.get('quantity', 1),
-        city=city,
-    )
+        
+    subtotal, savings, shipping, grand_total = cart_totals(cart, city)
+    
     lines = [
         '🙏 Gracias por tu compra. Ya dejé tu pedido listo.',
         f'🧾 Pedido: #{order_number}',
-        f'📦 Producto: {product["name"]}',
     ]
-    if variation and variation.get('label'):
-        lines.append(f'🎨 Variación: {variation["label"]}')
-    lines.append(f'🔢 Cantidad: {session.get("quantity", 1)}')
-    if pricing['discount_pct'] > 0:
-        lines.append(f'🏷️ Descuento aplicado: {percent_string(pricing["discount_pct"])}% sobre el precio rebajado actual')
-    lines.append(f'🛍️ Subtotal productos: {price_label(pricing["total"])}')
+    
+    for item in cart:
+        product = item['product']
+        variation = item['variation']
+        qty = item['quantity']
+        name = product['name']
+        if variation and variation.get('label'):
+            name += f" ({variation['label']})"
+        lines.append(f"📦 {qty}x {name}")
+        
+    lines.append(f'🛍️ Subtotal productos: {price_label(subtotal)}')
+    if savings > 0:
+        lines.append(f'✨ Ahorro: {price_label(savings)}')
+        
     if shipping['free_shipping']:
         lines.append('🚚 Envío: gratis')
     else:
         lines.append(f'🚚 Envío: {price_label(shipping["cost"])}')
     lines.append('💵 Pago: contra entrega en efectivo')
     lines.append(f'💰 Total final: {price_label(grand_total)}')
-    if product.get('permalink'):
-        lines.append(f'🔗 Link del producto: {product["permalink"]}')
-    category_key = session.get('category')
-    if category_key in CATEGORIES:
-        lines.append(f'✨ Si quieres, también te puedo mostrar más productos de {CATEGORIES[category_key]["label"]} o de otras categorías. Escribe MENU cuando quieras seguir comprando.')
-    else:
-        lines.append('✨ Si quieres, también te puedo mostrar productos parecidos o de otras categorías. Escribe MENU cuando quieras seguir comprando.')
-    lines.extend(upsell_lines(product, category_key=category_key, mode='post_purchase'))
+    
+    lines.append('✨ Si quieres, también te puedo mostrar más productos. Escribe MENU cuando quieras seguir comprando.')
     return '\n'.join(lines)
 
 
@@ -1401,9 +1376,9 @@ def open_product_detail(phone, hint, session, product):
 
 
 def create_order(session):
-    product = session.get('product')
-    if not product:
-        raise IntegrationError('No product selected.')
+    cart = session.get('cart', [])
+    if not cart:
+        raise IntegrationError('No products selected.')
     checkout = session.get('checkout', {})
     first_name, last_name = split_name(checkout.get('full_name', ''))
     billing = {
@@ -1416,22 +1391,30 @@ def create_order(session):
         'city': checkout.get('city', ''),
         'country': DEFAULT_COUNTRY,
     }
-    quantity = session.get('quantity', 1)
-    line_item = {'product_id': product['id'], 'quantity': quantity}
-    variation = session.get('variation')
-    if variation and variation.get('id'):
-        line_item['variation_id'] = variation['id']
-    pricing = pricing_for(product, variation=variation, quantity=quantity)
-    shipping = shipping_for_city(checkout.get('city', ''), pricing['total'])
-    line_item['subtotal'] = money_string(pricing['subtotal'])
-    line_item['total'] = money_string(pricing['total'])
+    
+    line_items = []
+    subtotal, savings, shipping, grand_total = cart_totals(cart, checkout.get('city', ''))
+    
+    for item in cart:
+        product = item['product']
+        variation = item['variation']
+        qty = item['quantity']
+        pricing = pricing_for(product, variation=variation, quantity=qty)
+        
+        line_item = {'product_id': product['id'], 'quantity': qty}
+        if variation and variation.get('id'):
+            line_item['variation_id'] = variation['id']
+        line_item['subtotal'] = money_string(pricing['subtotal'])
+        line_item['total'] = money_string(pricing['total'])
+        line_items.append(line_item)
+        
     payload = {
         'payment_method': 'cod',
         'payment_method_title': 'Contra entrega',
         'set_paid': False,
         'billing': billing,
         'shipping': billing,
-        'line_items': [line_item],
+        'line_items': line_items,
         'shipping_lines': [
             {
                 'method_id': 'flat_rate',
@@ -1443,8 +1426,6 @@ def create_order(session):
         'meta_data': [
             {'key': '_zender_channel', 'value': 'whatsapp_bot'},
             {'key': '_zender_customer_phone', 'value': checkout.get('customer_phone', '')},
-            {'key': '_bot_discount_pct', 'value': percent_string(pricing['discount_pct'])},
-            {'key': '_bot_discount_basis', 'value': pricing_rules().get('basis', 'current_price')},
             {'key': '_bot_shipping_region', 'value': shipping['region']},
             {'key': '_bot_shipping_cost', 'value': money_string(shipping['cost'])},
             {'key': '_bot_free_shipping', 'value': 'yes' if shipping['free_shipping'] else 'no'},
@@ -1497,13 +1478,41 @@ def pick_product(text, items):
     return None
 
 
-def send_message(phone, account_hint, message, image_url=None):
+def enhance_with_ai(message):
+    if not GEMINI_API_KEY:
+        return message
+        
     try:
-        uno_send(phone, message, hint=account_hint, image_url=image_url)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"""Eres un vendedor estrella de una tienda virtual en Colombia.
+Mejora el siguiente mensaje para que suene más natural, persuasivo y amable, como si estuvieras chateando por WhatsApp.
+REGLAS ESTRICTAS:
+1. NO inventes precios, descuentos, productos ni promociones. Usa SOLO la información dada.
+2. MANTÉN intactos los delimitadores --------, los enlaces (🔗), los emojis existentes y la estructura de listas y menús numerados.
+3. Puedes agregar emojis relevantes.
+4. Tu respuesta debe ser SOLO el mensaje mejorado, sin introducciones, saludos excesivos ni comillas.
+
+Mensaje original:
+{message}
+"""
+        response = model.generate_content(prompt)
+        enhanced = response.text.strip()
+        if enhanced:
+            return enhanced
+    except Exception as exc:
+        app.logger.warning('Failed to enhance message with AI: %s', exc)
+        
+    return message
+
+
+def send_message(phone, account_hint, message, image_url=None):
+    enhanced_message = enhance_with_ai(message)
+    try:
+        uno_send(phone, enhanced_message, hint=account_hint, image_url=image_url)
     except Exception as exc:
         if image_url:
             app.logger.warning('Image send failed, retrying text-only message: %s', exc)
-            uno_send(phone, message, hint=account_hint, image_url=None)
+            uno_send(phone, enhanced_message, hint=account_hint, image_url=None)
             return
         app.logger.exception('WhatsApp send failed: %s', exc)
         raise
@@ -1603,22 +1612,34 @@ def handle_variation(phone, hint, text, session):
     send_message(phone, hint, card_text(session['product'], selected, '✅ Si deseas continuar con este producto, escribe COMPRAR.'), selected.get('image') or session['product'].get('image'))
 
 
+def update_cart(session, quantity):
+    product = session.get('product')
+    if not product: return
+    variation = session.get('variation')
+    cart = session.setdefault('cart', [])
+    found = False
+    for item in cart:
+        if item['product']['id'] == product['id'] and (item['variation'] or {}).get('id') == (variation or {}).get('id'):
+            item['quantity'] = quantity
+            found = True
+            break
+    if not found:
+        cart.append({
+            'product': product,
+            'variation': variation,
+            'quantity': quantity
+        })
+
 def begin_checkout(phone, hint, text, session):
     quantity = checkout_quantity_update(text, session.get('quantity', 1), allow_plain=True)
     if quantity:
         session['quantity'] = quantity
+        update_cart(session, quantity)
         session['state'] = 'name'
         save_session(phone, session)
-        pricing = pricing_for(session.get('product'), variation=session.get('variation'), quantity=quantity)
-        lines = [f"✅ Perfecto. Vas con {quantity} unidad(es)."]
-        if pricing['discount_pct'] > 0:
-            lines.append(f"🏷️ Descuento aplicado: {percent_string(pricing['discount_pct'])}% sobre el precio rebajado actual.")
-            lines.append(f"💸 Valor por unidad: {price_label(pricing['discounted_unit'])}")
-            lines.append(f"🛍️ Subtotal productos: {price_label(pricing['total'])}")
-        else:
-            lines.append(f"🛍️ Subtotal productos: {price_label(pricing['total'])}")
-        lines.append('🚚 El envío se calcula según tu ciudad.')
-        lines.append('🙋 Escríbeme tu nombre completo para crear el pedido.')
+        lines = [f"✅ Perfecto. Producto agregado al carrito."]
+        lines.append(checkout_summary_text(session, city=''))
+        lines.append('🙋 Escríbeme tu nombre completo para crear el pedido o MENU para seguir comprando.')
         lines.append(checkout_edit_hint())
         send_message(phone, hint, '\n'.join(lines))
         return
@@ -1660,6 +1681,7 @@ def handle_checkout(phone, hint, text, session):
         quantity = checkout_quantity_update(text, session.get('quantity', 1), allow_plain=False)
         if quantity:
             session['quantity'] = quantity
+            update_cart(session, quantity)
             save_session(phone, session)
             send_message(phone, hint, prompt_after_quantity_update(session['state'], session))
             return
@@ -1669,18 +1691,12 @@ def handle_checkout(phone, hint, text, session):
             send_message(phone, hint, 'Necesito un número válido de unidades, por ejemplo 1 o 2.')
             return
         session['quantity'] = quantity
+        update_cart(session, quantity)
         session['state'] = 'name'
         save_session(phone, session)
-        pricing = pricing_for(session.get('product'), variation=session.get('variation'), quantity=quantity)
-        lines = [f"✅ Perfecto. Vas con {quantity} unidad(es)."]
-        if pricing['discount_pct'] > 0:
-            lines.append(f"🏷️ Descuento aplicado: {percent_string(pricing['discount_pct'])}% sobre el precio rebajado actual.")
-            lines.append(f"💸 Valor por unidad: {price_label(pricing['discounted_unit'])}")
-            lines.append(f"🛍️ Subtotal productos: {price_label(pricing['total'])}")
-        else:
-            lines.append(f"🛍️ Subtotal productos: {price_label(pricing['total'])}")
-        lines.append('🚚 El envío se calcula según tu ciudad.')
-        lines.append('🙋 Ahora escríbeme tu nombre completo.')
+        lines = [f"✅ Perfecto. Producto agregado al carrito."]
+        lines.append(checkout_summary_text(session, city=''))
+        lines.append('🙋 Ahora escríbeme tu nombre completo o MENU para seguir comprando.')
         lines.append(checkout_edit_hint())
         send_message(phone, hint, '\n'.join(lines))
         return
@@ -1700,11 +1716,9 @@ def handle_checkout(phone, hint, text, session):
         checkout['city'] = clean(text)
         session['state'] = 'address1'
         save_session(phone, session)
-        pricing, shipping, grand_total = quote_totals(
-            session.get('product'),
-            variation=session.get('variation'),
-            quantity=session.get('quantity', 1),
-            city=checkout['city'],
+        subtotal, savings, shipping, grand_total = cart_totals(
+            session.get('cart', []),
+            city=checkout['city']
         )
         lines = [f"🏠 ¿Cuál es tu dirección principal en {checkout['city']}?", '', checkout_summary_text(session, city=checkout['city'])]
         if shipping['free_shipping']:
@@ -1938,8 +1952,48 @@ def process_wc_customer_note(topic, payload):
     return True
 
 
+def process_wc_product_event(topic_text, payload):
+    product_id = payload.get('id')
+    name = payload.get('name')
+    if not product_id or not name:
+        return False
+
+    tags = [tag.get('name') for tag in payload.get('tags', []) if tag.get('name')]
+    aliases = list(tags)
+    
+    if GEMINI_API_KEY:
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = f"Genera 5 sinónimos o formas comunes y cortas en que un cliente de Colombia buscaría este producto por WhatsApp. Producto: '{name}'. Responde ÚNICAMENTE con una lista de palabras separadas por comas, sin comillas ni texto extra."
+            response = model.generate_content(prompt)
+            ai_aliases = [clean(a) for a in response.text.split(',')]
+            aliases.extend(ai_aliases)
+        except Exception as exc:
+            app.logger.warning('Could not generate aliases with Gemini for product %s: %s', product_id, exc)
+
+    aliases = unique_texts(aliases)
+    aliases_json = json.dumps(aliases)
+    
+    with DB_LOCK:
+        connection = db_conn()
+        try:
+            connection.execute(
+                "INSERT INTO products_cache (id, name, aliases) VALUES (?, ?, ?) "
+                "ON CONFLICT(id) DO UPDATE SET name=excluded.name, aliases=excluded.aliases",
+                (str(product_id), name, aliases_json),
+            )
+            connection.commit()
+        finally:
+            connection.close()
+    return True
+
+
 def process_woocommerce_webhook(topic, payload):
     topic_text = clean(topic).lower()
+    
+    if topic_text in ('product.created', 'product.updated'):
+        return process_wc_product_event(topic_text, payload)
+        
     if 'note' in topic_text or extract_customer_note_payload(payload).get('note'):
         return process_wc_customer_note(topic_text, payload)
     order = extract_order_payload(payload)
