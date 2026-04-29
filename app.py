@@ -1035,8 +1035,10 @@ def uno_send(recipient, message, hint=None, image_url=None):
         fields.extend([('type', (None, 'media')), ('media_url', (None, image_url)), ('media_type', (None, 'image'))])
     else:
         fields.append(('type', (None, 'text')))
+    app.logger.info('--- LLAMADA API ZENDER ---\nRecipient: %s\nMessage (Len: %d): %s\n---------------------------', recipient, len(message), message)
     response = requests.post(f"{UNO_API_BASE}/send/whatsapp", files=fields, timeout=REQUEST_TIMEOUT)
     if response.status_code >= 400:
+        app.logger.error('Error en API Zender: %s', response.text)
         raise IntegrationError(f"UNO send error {response.status_code}: {response.text[:250]}")
     payload = response.json()
     if payload.get('status') != 200:
@@ -1522,24 +1524,8 @@ def handle_fallback_ai(phone, hint, text, session):
     
     answer = call_gemini_api(prompt)
     if answer:
-        # Si el mensaje es muy largo, lo dividimos para evitar recortes del sistema
-        if len(answer) > 250:
-            # Intentamos cortar por un punto seguido si existe
-            mid = 250
-            idx = answer.find('. ', 150, 300)
-            if idx != -1:
-                mid = idx + 1
-            
-            part1 = answer[:mid].strip()
-            part2 = answer[mid:].strip()
-            
-            uno_send(phone, part1, hint)
-            if part2:
-                import time
-                time.sleep(1) # Pequeña pausa para orden
-                uno_send(phone, part2, hint)
-        else:
-            uno_send(phone, answer, hint)
+        # Volvemos a un solo mensaje para probar el límite de Zender
+        uno_send(phone, answer, hint)
         return
 
     # RESPALDO ESTÁTICO (Solo si la IA falla)
