@@ -1477,7 +1477,7 @@ def handle_fallback_ai(phone, hint, text, session):
     elif state == 'confirm_buy': reminder = "Dile que debe escribir COMPRAR para confirmar."
 
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-pro')
         prompt = f"Eres el soporte de 'Online Compra Fácil'. Info:\n{get_shop_info()}\nREGLA: Respuesta corta, emojis, {reminder}. Pregunta: {text}"
         
         response = model.generate_content(prompt)
@@ -1545,7 +1545,7 @@ def enhance_with_ai(message):
         
     app.logger.info('Iniciando mejora con IA (Gemini)...')
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-pro')
         prompt = f"""Eres un vendedor estrella de una tienda virtual en Colombia.
 Mejora el siguiente mensaje para que suene más natural, persuasivo y amable, como si estuvieras chateando por WhatsApp.
 REGLAS ESTRICTAS:
@@ -2052,7 +2052,7 @@ def process_wc_product_event(topic_text, payload):
     
     if GEMINI_API_KEY:
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-pro')
             prompt = f"Genera 5 sinónimos o formas comunes y cortas en que un cliente de Colombia buscaría este producto por WhatsApp. Producto: '{name}'. Responde ÚNICAMENTE con una lista de palabras separadas por comas, sin comillas ni texto extra."
             response = model.generate_content(prompt)
             ai_aliases = [clean(a) for a in response.text.split(',')]
