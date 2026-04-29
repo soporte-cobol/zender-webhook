@@ -2272,114 +2272,143 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{safe_title} | Dashboard</title>
+  <title>{safe_title} | Terminal</title>
   <style>
     :root {{
-      --bg: #050a14;
-      --panel: rgba(13, 22, 38, 0.95);
-      --line: rgba(255, 255, 255, 0.08);
+      --bg: #000;
+      --panel: #0a111e;
+      --line: rgba(255, 255, 255, 0.1);
       --text: #ecf7ff;
-      --muted: #9ab0c3;
+      --muted: #7f95a8;
       --accent: {accent};
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       min-height: 100vh;
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
       color: var(--text);
-      background: linear-gradient(180deg, #050b15 0%, #0a1322 100%);
-      display: grid;
-      place-items: center;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       padding: 20px;
     }}
-    .panel {{
-      width: min(850px, 100%);
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      background: var(--panel);
-      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
-      overflow: hidden;
+    .container {{
+      width: min(900px, 100%);
+      text-align: center;
     }}
-    .header {{ padding: 30px 30px 10px; text-align: center; }}
-    h1 {{ margin: 0; font-size: 1.8rem; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }}
-    p {{ color: var(--muted); margin-top: 10px; font-size: 0.95rem; }}
-    .grid {{
-      padding: 30px;
+    .banner {{
+      color: var(--accent);
+      font-size: 10px;
+      line-height: 1.2;
+      white-space: pre;
+      margin-bottom: 2rem;
+      display: inline-block;
+      text-align: left;
+      text-shadow: 0 0 15px var(--accent);
+    }}
+    h1 {{ font-size: 1.8rem; margin: 0 0 10px; letter-spacing: 2px; text-transform: uppercase; }}
+    .subtitle {{ color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }}
+    
+    .status-row {{
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 3rem;
+    }}
+    .badge {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--line);
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: var(--muted);
+    }}
+    .badge.active {{ color: var(--accent); border-color: var(--accent); background: rgba(55, 240, 194, 0.05); }}
+    .badge.error {{ color: #ff5e5e; border-color: #ff5e5e; background: rgba(255, 94, 94, 0.05); }}
+    .dot {{ width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }}
+    
+    .tech-panel {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 25px;
+      text-align: left;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }}
+    .tech-title {{
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 15px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 8px;
+    }}
+    .tech-grid {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 20px;
     }}
-    .card {{
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      padding: 20px;
-    }}
-    .card-label {{ display: block; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }}
-    .card-value {{ font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 12px; }}
-    .status-dot {{
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      box-shadow: 0 0 12px currentColor;
-      animation: pulse 2s infinite;
-    }}
-    @keyframes pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} }}
-    .footer {{
-      padding: 20px 30px 30px;
-      border-top: 1px solid var(--line);
-      background: rgba(0, 0, 0, 0.2);
-    }}
-    .info-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.85rem; align-items: center; }}
-    .info-label {{ color: var(--muted); }}
-    code {{ color: var(--accent); background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; }}
-    pre {{ font-size: 8px; color: var(--accent); opacity: 0.2; text-align: center; margin-bottom: 10px; }}
+    .tech-item {{ display: flex; flex-direction: column; gap: 5px; }}
+    .tech-label {{ color: var(--muted); font-size: 0.7rem; }}
+    .tech-value {{ color: var(--text); font-size: 0.85rem; }}
+    code {{ color: var(--accent); }}
+
+    .footer {{ margin-top: 2rem; font-size: 0.75rem; color: var(--muted); }}
   </style>
 </head>
 <body>
-  <div class="panel">
-    <div class="header">
-      <pre>{safe_banner}</pre>
-      <h1>{safe_title}</h1>
-      <p>{safe_subtitle}</p>
-    </div>
-    <div class="grid">
-      <div class="card">
-        <span class="card-label">Motor IA Gemini</span>
-        <div class="card-value">
-          <div class="status-dot" style="color: {health['gemini']['color']}"></div>
-          {health['gemini']['status']}
-        </div>
+  <div class="container">
+    <div class="banner">{safe_banner}</div>
+    <h1>{safe_title}</h1>
+    <p class="subtitle">{safe_subtitle}</p>
+
+    <div class="status-row">
+      <div class="badge {'active' if health['gemini']['status'] == 'ACTIVO' else 'error'}">
+        <div class="dot"></div>
+        IA: {health['gemini']['status']}
       </div>
-      <div class="card">
-        <span class="card-label">Tienda WooCommerce</span>
-        <div class="card-value">
-          <div class="status-dot" style="color: {health['woo']['color']}"></div>
-          {health['woo']['status']}
-        </div>
+      <div class="badge {'active' if health['woo']['status'] == 'CONECTADO' else 'error'}">
+        <div class="dot"></div>
+        TIENDA: {health['woo']['status']}
       </div>
-      <div class="card">
-        <span class="card-label">API Zender WhatsApp</span>
-        <div class="card-value">
-          <div class="status-dot" style="color: {health['zender']['color']}"></div>
-          {health['zender']['status']}
-        </div>
+      <div class="badge {'active' if health['zender']['status'] == 'ACTIVO' else 'error'}">
+        <div class="dot"></div>
+        WHATSAPP: {health['zender']['status']}
       </div>
     </div>
+
+    <div class="tech-panel">
+      <div class="tech-title">Detalles Técnicos del Sistema</div>
+      <div class="tech-grid">
+        <div class="tech-item">
+          <span class="tech-label">Webhook Endpoint</span>
+          <span class="tech-value"><code>{safe_endpoint}</code></span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">Número Conectado</span>
+          <span class="tech-value">{health['wa_account']}</span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">ID de Cuenta Zender</span>
+          <span class="tech-value"><code>{UNO_WA_ACCOUNT or 'N/A'}</code></span>
+        </div>
+        <div class="tech-item">
+          <span class="tech-label">Modelo de IA</span>
+          <span class="tech-value">Gemini 2.5 Flash</span>
+        </div>
+      </div>
+    </div>
+
     <div class="footer">
-      <div class="info-row">
-        <span class="info-label">Webhook:</span>
-        <code>{safe_endpoint}</code>
-      </div>
-      <div class="info-row">
-        <span class="info-label">WhatsApp:</span>
-        <span style="font-weight: 600;">{health['wa_account']}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Estado:</span>
-        <span style="color: var(--accent); font-weight: bold;">● OPERATIVO</span>
-      </div>
+      SISTEMA OPERATIVO // CONEXIÓN ESTABLE // LISTO PARA RECIBIR EVENTOS
     </div>
   </div>
 </body>
