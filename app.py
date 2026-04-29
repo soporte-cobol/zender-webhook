@@ -2226,6 +2226,17 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
     return Response(page, mimetype='text/html')
 
 
+def process_event_async(payload_type, payload_data, event_key):
+    try:
+        if payload_type == 'whatsapp':
+            handle_whatsapp(payload_data)
+        else:
+            app.logger.info('Ignoring unsupported payload type: %s', payload_type)
+        mark_event(event_key)
+    except Exception as exc:
+        app.logger.exception('Async event processing failed: %s', exc)
+
+
 @app.route('/', methods=['GET', 'POST'])
 @app.route('/zender-webhook', methods=['GET', 'POST'])
 def zender_webhook():
@@ -2248,18 +2259,14 @@ def zender_webhook():
     if event_seen(event_key):
         return jsonify({'status': 'duplicate'}), 200
     try:
-        if payload_type == 'whatsapp':
-            handle_whatsapp(payload_data)
-        else:
-            app.logger.info('Ignoring unsupported payload type: %s', payload_type)
-    except IntegrationError as exc:
-        app.logger.exception('Webhook processing error: %s', exc)
-        return jsonify({'error': str(exc)}), 500
+        threading.Thread(
+            target=process_event_async,
+            args=(payload_type, payload_data, event_key),
+            daemon=True
+        ).start()
     except Exception as exc:
-        app.logger.exception('Unexpected webhook error: %s', exc)
-        return jsonify({'error': 'Internal server error'}), 500
-    mark_event(event_key)
-    return jsonify({'status': 'processed'}), 200
+        app.logger.exception('Failed to spawn thread: %s', exc)
+    return jsonify({'status': 'ok'}), 200
 
 
 @app.route('/woocommerce-webhook', methods=['GET', 'POST'])
