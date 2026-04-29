@@ -1493,6 +1493,7 @@ REGLAS ESTRICTAS:
 2. MANTÉN intactos los delimitadores --------, los enlaces (🔗), los emojis existentes y la estructura de listas y menús numerados.
 3. Puedes agregar emojis relevantes.
 4. Tu respuesta debe ser SOLO el mensaje mejorado, sin introducciones, saludos excesivos ni comillas.
+5. NO recortes la descripción del producto ni los beneficios, mantén toda la información detallada que se te entrega.
 
 Mensaje original:
 {message}
