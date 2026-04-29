@@ -1774,26 +1774,35 @@ def handle_confirm(phone, hint, text, session):
 def handle_checkout(phone, hint, text, session):
     message = norm(text)
     checkout = session['checkout']
+    
+    # 1. MENU
+    if is_menu_request(text):
+        session['state'] = 'idle'
+        save_session(phone, session)
+        handle_idle(phone, hint, text, session)
+        return
+
+    # 2. QUITAR ITEM
     if wants_remove_current_item(text, session):
         remove_current_item(phone, hint, session)
         return
     
-    # Prioridad: Si el usuario menciona un nuevo producto o categoría, salimos del flujo de checkout
-    if len(message) >= 4:
-        # No buscamos si parece solo una respuesta de nombre o ciudad corta
-        if session['state'] not in {'name', 'city'} or any(token in message for token in CUSTOMER_SERVICE_TOKENS) or len(message) > 15:
-            direct_product, matched_products = direct_product_match(text)
-            if direct_product:
-                session['last_products'] = matched_products or [direct_product]
-                open_product_detail(phone, hint, session, direct_product)
-                return
-            
-            category_key = category_for(text)
-            if category_key:
-                session['state'] = 'idle'
-                save_session(phone, session)
-                handle_idle(phone, hint, text, session)
-                return
+    # 3. INTERCEPTAR PREGUNTAS (Antes de procesar como nombre/dirección)
+    # Si detectamos palabras clave de pago/envío, o si la frase es una pregunta clara
+    payment_keywords = {'pago', 'pagar', 'nequi', 'daviplata', 'wompi', 'tarjeta', 'pse', 'bancolombia', 'efectivo', 'credito', 'cuotas', 'corresponsal'}
+    shipping_keywords = {'envio', 'mandar', 'llega', 'recibo', 'tiempo', 'entrega', 'bogota', 'nacional', 'cauca', 'medellin', 'cali', 'domicilio'}
+    
+    if any(k in message for k in payment_keywords | shipping_keywords) or message.endswith('?'):
+        handle_fallback_ai(phone, hint, text, session)
+        return
+
+    # 4. BUSCAR PRODUCTOS (Si el usuario quiere agregar algo más)
+    if len(message) >= 4 and session['state'] not in {'qty'}:
+        direct_product, matched_products = direct_product_match(text)
+        if direct_product:
+            session['last_products'] = matched_products or [direct_product]
+            open_product_detail(phone, hint, session, direct_product)
+            return
 
     if session['state'] != 'qty':
         quantity = checkout_quantity_update(text, session.get('quantity', 1), allow_plain=False)
