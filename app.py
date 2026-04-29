@@ -1497,15 +1497,16 @@ def call_gemini_api(prompt):
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 1024}
+        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 2048}
     }
     
     try:
         import requests
         response = requests.post(url, json=payload, headers=headers, timeout=12)
         if response.status_code == 200:
-            data = response.json()
-            return data['candidates'][0]['content']['parts'][0]['text'].strip()
+            text = response.json()['candidates'][0]['content']['parts'][0]['text']
+            app.logger.info('--- RESPUESTA RECIBIDA DE GEMINI (Longitud: %d) ---', len(text))
+            return text.strip()
         else:
             app.logger.warning('Error en API Gemini (HTTP %s): %s', response.status_code, response.text)
     except Exception as e:
