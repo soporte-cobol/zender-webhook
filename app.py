@@ -1195,7 +1195,7 @@ def card_text(product, variation=None, prompt=None, category_key=None):
     if variation and variation.get('label'):
         lines.append(f"🎨 Variación: {variation['label']}")
     if product.get('short_description'):
-        lines.append(f"📝 Descripción: {product['short_description'][:220]}")
+        lines.append(f"📝 Descripción: {product['short_description'][:500]}")
     promo = pricing_note()
     if promo:
         lines.append(promo)
