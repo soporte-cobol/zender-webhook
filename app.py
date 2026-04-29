@@ -1446,6 +1446,56 @@ def create_order(session):
     return wc_request('POST', 'orders', payload=payload)
 
 
+def get_shop_info():
+    rules = shipping_rules()
+    return f"""
+- Nombre de la tienda: Online Compra Fácil.
+- Métodos de pago en WhatsApp: Principalmente Pago Contra Entrega (efectivo al recibir).
+- Métodos de pago en Web: A través de Wompi (Bancolombia) recibimos PSE, Nequi, Daviplata, Bancolombia y red ACH. También tarjetas Visa, Mastercard y American Express.
+- Corresponsales: Se puede pagar en efectivo en corresponsales Bancolombia.
+- Créditos: Ofrecemos crédito directo con Bancolombia ("Compra ahora y paga después"), Crédito Nequi y SU+ Pay (sujeto a aprobación de la pasarela).
+- Tiempos de entrega: Si compras antes del mediodía, entregamos el mismo día. Si es en la tarde, entregamos al día siguiente.
+- Cobertura: Hacemos envíos a todo el territorio nacional en Colombia.
+- Costos de envío: Bogotá {price_label(rules['bogota_cost'])}, Ciudades principales {price_label(rules['principal_cost'])}, resto del país {price_label(rules['national_cost'])}.
+- Envío gratis: En Bogotá y ciudades principales es GRATIS si la compra supera los {price_label(rules['free_shipping_threshold'])}.
+- Descuentos: Tenemos promos por cantidad: 2 unidades tienen 5% de descuento, y 3 o más tienen 10% de descuento (sobre precio rebajado).
+"""
+
+
+def handle_fallback_ai(phone, hint, text, session):
+    if not GEMINI_API_KEY:
+        send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías o prueba con el nombre exacto del producto.')
+        return
+        
+    app.logger.info('Llamando a IA de soporte para: %s', text)
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        context = f"""Eres un vendedor estrella de la tienda "Online Compra Fácil" en Colombia. 
+Tu objetivo es resolver dudas del cliente sobre la tienda de forma amable, corta y persuasiva.
+
+INFORMACIÓN REAL DE LA TIENDA:
+{get_shop_info()}
+
+REGLAS DE RESPUESTA:
+1. Responde de forma muy breve y amable (estilo chat de WhatsApp).
+2. Usa emojis para que el mensaje sea visual.
+3. Si el cliente pregunta por un producto que no logramos identificar, dile que puede escribir MENU para ver el catálogo o que te diga el nombre del producto.
+4. NO inventes información. Si no sabes algo, invita al cliente a esperar a un asesor humano.
+5. Mantén siempre el foco en ayudar al cliente a comprar.
+
+Pregunta del cliente: {text}
+"""
+        response = model.generate_content(context)
+        answer = response.text.strip()
+        if answer:
+            send_message(phone, hint, answer)
+            return
+    except Exception as exc:
+        app.logger.warning('Fallback AI falló: %s', exc)
+        
+    send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías o prueba con el nombre exacto.')
+
+
 def pick_number(text, items):
     if not items:
         return None
@@ -1585,7 +1635,7 @@ def handle_idle(phone, hint, text, session):
             label = candidate if norm(candidate) != norm(text) else clean(text)
             send_message(phone, hint, list_text(f"🔎 Encontré estos productos para '{label}':", products))
             return
-    send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías o prueba con el nombre exacto del producto.')
+    handle_fallback_ai(phone, hint, text, session)
 
 
 def handle_product(phone, hint, text, session):
