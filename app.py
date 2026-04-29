@@ -1479,7 +1479,8 @@ def pick_product(text, items):
 
 
 def enhance_with_ai(message):
-    if not GEMINI_API_KEY:
+    # Si el mensaje es el menú o muy corto, no gastamos tiempo en IA
+    if not GEMINI_API_KEY or 'Categorías disponibles' in message or len(message) < 10:
         return message
         
     app.logger.info('Iniciando mejora con IA (Gemini)...')
@@ -2234,11 +2235,12 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
 
 
 def process_event_async(payload_type, payload_data, event_key):
+    app.logger.info('--- Iniciando hilo de fondo para evento: %s ---', event_key)
     try:
         if payload_type == 'whatsapp':
             handle_whatsapp(payload_data)
         else:
-            app.logger.info('Ignoring unsupported payload type: %s', payload_type)
+            app.logger.info('Tipo de payload no soportado: %s', payload_type)
     except Exception as exc:
         app.logger.exception('Async event processing failed: %s', exc)
 
