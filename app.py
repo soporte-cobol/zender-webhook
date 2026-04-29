@@ -2232,7 +2232,6 @@ def process_event_async(payload_type, payload_data, event_key):
             handle_whatsapp(payload_data)
         else:
             app.logger.info('Ignoring unsupported payload type: %s', payload_type)
-        mark_event(event_key)
     except Exception as exc:
         app.logger.exception('Async event processing failed: %s', exc)
 
@@ -2258,6 +2257,11 @@ def zender_webhook():
     event_key = f"{payload_type}:{event_id}" if payload_type and event_id else None
     if event_seen(event_key):
         return jsonify({'status': 'duplicate'}), 200
+    
+    # Marcamos el evento como visto de inmediato para que si Zender reintenta 
+    # mientras la IA aún está pensando, el servidor responda "duplicate" al instante.
+    mark_event(event_key)
+    
     try:
         threading.Thread(
             target=process_event_async,
