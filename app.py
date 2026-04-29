@@ -1492,8 +1492,8 @@ def call_gemini_api(prompt):
     if not GEMINI_API_KEY:
         return None
     
-    # Usamos Gemini 2.0 Flash-Lite (más rápido y estable para chats largos)
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?key={GEMINI_API_KEY}"
+    # Usamos Gemini 2.5 Flash (el modelo estable para tu cuenta)
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
