@@ -1464,46 +1464,34 @@ def get_shop_info():
 
 def handle_fallback_ai(phone, hint, text, session):
     if not GEMINI_API_KEY:
-        send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías o prueba con el nombre exacto.')
+        send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías.')
         return
         
     state = session.get('state', 'idle')
-    app.logger.info('Llamando a IA de soporte (Estado: %s) para: %s', state, text)
+    app.logger.info('--- INTENTO DE SOPORTE IA --- Estado: %s, Pregunta: %s', state, text)
     
-    # Construir recordatorio según el estado
     reminder = ""
-    if state == 'name': reminder = "Después de responder, recuérdale que aún necesito su nombre completo."
-    elif state == 'city': reminder = "Después de responder, recuérdale que aún necesito saber la ciudad de entrega."
-    elif state == 'address1': reminder = "Después de responder, recuérdale que aún necesito su dirección."
-    elif state == 'confirm_buy': reminder = "Después de responder, recuérdale que si desea confirmar el pedido debe escribir COMPRAR."
+    if state == 'name': reminder = "Recuérdale que aún necesito su nombre."
+    elif state == 'city': reminder = "Recuérdale que aún necesito la ciudad."
+    elif state == 'address1': reminder = "Recuérdale que aún necesito la dirección."
+    elif state == 'confirm_buy': reminder = "Dile que debe escribir COMPRAR para confirmar."
 
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
-        context = f"""Eres un vendedor estrella de la tienda "Online Compra Fácil" en Colombia. 
-Tu objetivo es resolver dudas del cliente sobre la tienda de forma amable, corta y persuasiva.
-
-INFORMACIÓN REAL DE LA TIENDA:
-{get_shop_info()}
-
-REGLAS DE RESPUESTA:
-1. Responde de forma muy breve (máximo 2-3 frases) y amable.
-2. Usa emojis.
-3. {reminder}
-4. Si el cliente pregunta por un producto que no logramos identificar, dile que puede escribir MENU para ver el catálogo.
-5. NO inventes información.
-6. Mantén siempre el foco en ayudar al cliente a comprar.
-
-Pregunta del cliente: {text}
-"""
-        response = model.generate_content(context)
-        answer = response.text.strip()
-        if answer:
+        prompt = f"Eres el soporte de 'Online Compra Fácil'. Info:\n{get_shop_info()}\nREGLA: Respuesta corta, emojis, {reminder}. Pregunta: {text}"
+        
+        response = model.generate_content(prompt)
+        if response and response.text:
+            answer = response.text.strip()
+            app.logger.info('Soporte IA respondió exitosamente.')
             send_message(phone, hint, answer)
             return
+        else:
+            app.logger.warning('Soporte IA devolvió respuesta vacía.')
     except Exception as exc:
-        app.logger.warning('Fallback AI falló: %s', exc)
+        app.logger.error('ERROR CRÍTICO EN SOPORTE IA: %s', exc, exc_info=True)
         
-    send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías o prueba con el nombre exacto.')
+    send_message(phone, hint, 'No logré identificar el producto o responder tu duda. Por favor, escribe MENU o el nombre exacto del producto.')
 
 
 def pick_number(text, items):
