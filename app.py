@@ -1482,6 +1482,7 @@ def enhance_with_ai(message):
     if not GEMINI_API_KEY:
         return message
         
+    app.logger.info('Iniciando mejora con IA (Gemini)...')
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""Eres un vendedor estrella de una tienda virtual en Colombia.
@@ -1495,26 +1496,32 @@ REGLAS ESTRICTAS:
 Mensaje original:
 {message}
 """
+        # Añadimos un pequeño timeout implícito o al menos registro
         response = model.generate_content(prompt)
         enhanced = response.text.strip()
         if enhanced:
+            app.logger.info('IA mejoró el mensaje exitosamente.')
             return enhanced
     except Exception as exc:
-        app.logger.warning('Failed to enhance message with AI: %s', exc)
+        app.logger.warning('Error o timeout al mejorar con IA: %s', exc)
         
     return message
 
 
 def send_message(phone, account_hint, message, image_url=None):
+    app.logger.info('Preparando envío a %s. Imagen: %s', phone, bool(image_url))
     enhanced_message = enhance_with_ai(message)
+    
+    app.logger.info('Enviando mensaje final vía UNO API...')
     try:
-        uno_send(phone, enhanced_message, hint=account_hint, image_url=image_url)
+        res = uno_send(phone, enhanced_message, hint=account_hint, image_url=image_url)
+        app.logger.info('Mensaje enviado exitosamente. ID: %s', res.get('id') if isinstance(res, dict) else 'ok')
     except Exception as exc:
         if image_url:
-            app.logger.warning('Image send failed, retrying text-only message: %s', exc)
+            app.logger.warning('Fallo envío con imagen, reintentando solo texto: %s', exc)
             uno_send(phone, enhanced_message, hint=account_hint, image_url=None)
             return
-        app.logger.exception('WhatsApp send failed: %s', exc)
+        app.logger.error('Error crítico al enviar WhatsApp: %s', exc)
         raise
 
 
