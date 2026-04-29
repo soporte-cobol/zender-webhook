@@ -1209,7 +1209,13 @@ def card_text(product, variation=None, prompt=None, category_key=None):
 
 
 def checkout_edit_hint():
-    return "✏️ Si quieres agregar otro producto, escríbeme su nombre. También puedes ajustar cantidades (ej: 'quiero 3 unidades') o escribir MENU para ver el catálogo."
+    return (
+        "💡 *Tips de edición:*\n"
+        "• Para agregar más: Escribe el nombre del otro producto.\n"
+        "• Para cambiar cantidad: Escribe 'quiero 3' o 'sube a 5'.\n"
+        "• Para quitar algo: Escribe 'quita la máquina' o 'vaciar carrito'.\n"
+        "• Para empezar de cero: Escribe REINICIAR."
+    )
 
 
 def cart_totals(cart, city=''):
@@ -1281,8 +1287,14 @@ def prompt_after_quantity_update(state, session):
 def remove_current_item(phone, hint, session):
     cart = session.get('cart', [])
     product = session.get('product')
+    last_text = session.get('last_message_raw', '').lower()
     
-    if cart and product:
+    # Si el usuario pide explícitamente borrar TODO el carrito
+    if 'todo' in last_text or 'carrito' in last_text or 'pedido' in last_text or 'vaciar' in last_text:
+        session['cart'] = []
+        cart = []
+    elif cart and product:
+        # Solo quitar el producto actual
         cart = [item for item in cart if item['product']['id'] != product['id']]
         session['cart'] = cart
         
@@ -1793,6 +1805,7 @@ def handle_whatsapp(data):
     if not phone:
         raise IntegrationError('Incoming WhatsApp payload does not include a phone number.')
     session = load_session(phone)
+    session['last_message_raw'] = text
     message = norm(text)
     if message in RESET_WORDS:
         reset_session(phone)
