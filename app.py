@@ -1487,42 +1487,56 @@ def get_shop_info():
 """
 
 
-def handle_fallback_ai(phone, hint, text, session):
-    message_norm = norm(text)
+def call_gemini_api(prompt):
+    """Llamada directa por HTTP a Gemini para evitar errores de librería 404."""
+    if not GEMINI_API_KEY:
+        return None
     
-    # RESPALDO POR PALABRAS CLAVE (Si la IA falla o para velocidad)
+    # Usamos gemini-1.5-flash vía HTTP (v1beta es estable para esta llamada)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 400}
+    }
+    
+    try:
+        import requests
+        response = requests.post(url, json=payload, headers=headers, timeout=12)
+        if response.status_code == 200:
+            data = response.json()
+            return data['candidates'][0]['content']['parts'][0]['text'].strip()
+        else:
+            app.logger.warning('Error en API Gemini (HTTP %s): %s', response.status_code, response.text)
+    except Exception as e:
+        app.logger.error('Fallo crítico llamando a Gemini por HTTP: %s', e)
+    return None
+
+
+def handle_fallback_ai(phone, hint, text, session):
+    state = session.get('state', 'idle')
+    app.logger.info('--- INTENTO DE SOPORTE IA (HTTP) --- Estado: %s, Pregunta: %s', state, text)
+    
+    prompt = f"Eres el soporte de 'Online Compra Fácil' en Colombia. Info:\n{get_shop_info()}\nREGLA: Respuesta corta (máximo 2 frases), emojis. Sé muy amable y persuasivo. Pregunta del cliente: {text}"
+    
+    answer = call_gemini_api(prompt)
+    if answer:
+        send_message(phone, hint, answer)
+        return
+
+    # RESPALDO ESTÁTICO (Solo si la IA falla)
+    message_norm = norm(text)
     payment_keywords = {'pago', 'pagar', 'nequi', 'daviplata', 'wompi', 'tarjeta', 'pse', 'bancolombia', 'efectivo', 'credito', 'cuotas', 'corresponsal'}
     shipping_keywords = {'envio', 'mandar', 'llega', 'recibo', 'tiempo', 'entrega', 'bogota', 'nacional', 'cauca', 'medellin', 'cali', 'domicilio'}
     
     if any(k in message_norm for k in payment_keywords):
-        app.logger.info('Respondiendo duda de pago por palabra clave.')
         send_message(phone, hint, "💳 *Métodos de pago:*\n• WhatsApp: Pago Contra Entrega en efectivo.\n• Web (Wompi): Nequi, Daviplata, PSE, Bancolombia y Tarjetas (Visa/Master).\n• Crédito: Bancolombia, Nequi y SU+ Pay.")
         return
-
     if any(k in message_norm for k in shipping_keywords):
-        app.logger.info('Respondiendo duda de envío por palabra clave.')
         send_message(phone, hint, "🚚 *Envíos:*\n• Cobertura nacional en Colombia.\n• Tiempos: Si compras antes del mediodía, llega el mismo día (en la tarde/mañana siguiente resto del país).\n• Costos: Bogotá $8.000, ciudades principales $12.000, nacional $20.000.")
         return
 
-    if not GEMINI_API_KEY:
-        send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías.')
-        return
-        
-    state = session.get('state', 'idle')
-    app.logger.info('--- INTENTO DE SOPORTE IA --- Estado: %s, Pregunta: %s', state, text)
-    
-    # ... resto de la lógica de IA ...
-    try:
-        model = genai.GenerativeModel('gemini-pro') # Volvemos a probar pro por si acaso
-        prompt = f"Eres el soporte de 'Online Compra Fácil'. Info:\n{get_shop_info()}\nREGLA: Respuesta corta, emojis. Pregunta: {text}"
-        response = model.generate_content(prompt)
-        if response and response.text:
-            send_message(phone, hint, response.text.strip())
-            return
-    except Exception as exc:
-        app.logger.error('ERROR EN SOPORTE IA: %s', exc)
-        
-    send_message(phone, hint, 'No logré identificar el producto o responder tu duda. Por favor, escribe MENU o el nombre exacto del producto.')
+    send_message(phone, hint, 'No logré identificar el producto o responder tu duda. Por favor, escribe MENU o el nombre del producto.')
 
 
 def pick_number(text, items):
@@ -1570,35 +1584,22 @@ def pick_product(text, items):
 
 
 def enhance_with_ai(message):
-    # Si el mensaje es el menú o muy corto, no gastamos tiempo en IA
-    if not GEMINI_API_KEY or 'Categorías disponibles' in message or len(message) < 10:
+    if not GEMINI_API_KEY or 'Categorías disponibles' in message or len(message) < 15:
         return message
         
-    app.logger.info('Iniciando mejora con IA (Gemini)...')
-    try:
-        model = genai.GenerativeModel('gemini-1.0-pro')
-        prompt = f"""Eres un vendedor estrella de una tienda virtual en Colombia.
+    prompt = f"""Eres un vendedor estrella de una tienda virtual en Colombia.
 Mejora el siguiente mensaje para que suene más natural, persuasivo y amable, como si estuvieras chateando por WhatsApp.
 REGLAS ESTRICTAS:
-1. NO inventes precios, descuentos, productos ni promociones. Usa SOLO la información dada.
-2. MANTÉN intactos los delimitadores --------, los enlaces (🔗), los emojis existentes y la estructura de listas y menús numerados.
-3. Puedes agregar emojis relevantes.
-4. Tu respuesta debe ser SOLO el mensaje mejorado, sin introducciones, saludos excesivos ni comillas.
-5. NO recortes la descripción del producto ni los beneficios, mantén toda la información detallada que se te entrega.
+1. NO inventes precios, descuentos ni productos.
+2. MANTÉN intactos enlaces (🔗), emojis base y la estructura de listas.
+3. Tu respuesta debe ser SOLO el mensaje mejorado.
+4. NO recortes descripciones técnicas.
 
 Mensaje original:
 {message}
 """
-        # Añadimos un pequeño timeout implícito o al menos registro
-        response = model.generate_content(prompt)
-        enhanced = response.text.strip()
-        if enhanced:
-            app.logger.info('IA mejoró el mensaje exitosamente.')
-            return enhanced
-    except Exception as exc:
-        app.logger.warning('Error o timeout al mejorar con IA: %s', exc)
-        
-    return message
+    enhanced = call_gemini_api(prompt)
+    return enhanced if enhanced else message
 
 
 def send_message(phone, account_hint, message, image_url=None):
