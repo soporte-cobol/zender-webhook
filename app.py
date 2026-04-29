@@ -2255,7 +2255,6 @@ def get_system_health():
 
 
 def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
-    health = get_system_health()
     safe_title = html.escape(title)
     safe_subtitle = html.escape(subtitle)
     safe_endpoint = html.escape(endpoint_path)
@@ -2272,33 +2271,40 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{safe_title} | Terminal</title>
+  <title>{safe_title}</title>
   <style>
     :root {{
-      --bg: #000;
-      --panel: #0a111e;
-      --line: rgba(255, 255, 255, 0.1);
+      --bg: #08111f;
+      --panel: rgba(9, 18, 34, 0.92);
+      --line: rgba(255, 255, 255, 0.10);
       --text: #ecf7ff;
-      --muted: #7f95a8;
+      --muted: #9ab0c3;
       --accent: {accent};
     }}
     * {{ box-sizing: border-box; }}
     body {{
-      margin: 0;
-      min-height: 100vh;
-      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      background: var(--bg);
       color: var(--text);
-      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 20px;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1.5rem;
     }}
-    .container {{
-      width: min(900px, 100%);
+    .panel {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      padding: 3rem;
+      width: 100%;
+      max-width: 600px;
       text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }}
     .banner {{
+      font-family: monospace;
       color: var(--accent);
       font-size: 10px;
       line-height: 1.2;
@@ -2306,109 +2312,61 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
       margin-bottom: 2rem;
       display: inline-block;
       text-align: left;
-      text-shadow: 0 0 15px var(--accent);
     }}
-    h1 {{ font-size: 1.8rem; margin: 0 0 10px; letter-spacing: 2px; text-transform: uppercase; }}
-    .subtitle {{ color: var(--muted); margin-bottom: 2rem; font-size: 0.9rem; }}
-    
-    .status-row {{
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 12px;
-      margin-bottom: 3rem;
+    h1 {{
+      font-size: 1.875rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.025em;
     }}
-    .badge {{
+    p {{
+      color: var(--muted);
+      margin: 0 0 2rem;
+    }}
+    .status {{
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--line);
-      font-size: 0.75rem;
-      font-weight: bold;
-      color: var(--muted);
+      gap: 0.5rem;
+      background: rgba(55, 240, 194, 0.1);
+      color: var(--accent);
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border: 1px solid rgba(55, 240, 194, 0.2);
     }}
-    .badge.active {{ color: var(--accent); border-color: var(--accent); background: rgba(55, 240, 194, 0.05); }}
-    .badge.error {{ color: #ff5e5e; border-color: #ff5e5e; background: rgba(255, 94, 94, 0.05); }}
-    .dot {{ width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor; }}
-    
-    .tech-panel {{
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 25px;
-      text-align: left;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    .dot {{
+      width: 0.5rem;
+      height: 0.5rem;
+      background: currentColor;
+      border-radius: 50%;
+      box-shadow: 0 0 10px currentColor;
     }}
-    .tech-title {{
-      font-size: 0.7rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      margin-bottom: 15px;
-      border-bottom: 1px solid var(--line);
-      padding-bottom: 8px;
+    .footer {{
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--line);
+      font-size: 0.875rem;
     }}
-    .tech-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 20px;
+    .footer code {{
+      background: rgba(0, 0, 0, 0.2);
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.25rem;
+      color: var(--accent);
     }}
-    .tech-item {{ display: flex; flex-direction: column; gap: 5px; }}
-    .tech-label {{ color: var(--muted); font-size: 0.7rem; }}
-    .tech-value {{ color: var(--text); font-size: 0.85rem; }}
-    code {{ color: var(--accent); }}
-
-    .footer {{ margin-top: 2rem; font-size: 0.75rem; color: var(--muted); }}
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="panel">
     <div class="banner">{safe_banner}</div>
     <h1>{safe_title}</h1>
-    <p class="subtitle">{safe_subtitle}</p>
-
-    <div class="status-row">
-      <div class="badge {'active' if health['gemini']['status'] == 'ACTIVO' else 'error'}">
-        <div class="dot"></div>
-        IA: {health['gemini']['status']}
-      </div>
-      <div class="badge {'active' if health['woo']['status'] == 'CONECTADO' else 'error'}">
-        <div class="dot"></div>
-        TIENDA: {health['woo']['status']}
-      </div>
-      <div class="badge {'active' if health['zender']['status'] == 'ACTIVO' else 'error'}">
-        <div class="dot"></div>
-        WHATSAPP: {health['zender']['status']}
-      </div>
+    <p>{safe_subtitle}</p>
+    <div class="status">
+      <div class="dot"></div>
+      Activo
     </div>
-
-    <div class="tech-panel">
-      <div class="tech-title">Detalles Técnicos del Sistema</div>
-      <div class="tech-grid">
-        <div class="tech-item">
-          <span class="tech-label">Webhook Endpoint</span>
-          <span class="tech-value"><code>{safe_endpoint}</code></span>
-        </div>
-        <div class="tech-item">
-          <span class="tech-label">Número Conectado</span>
-          <span class="tech-value">{health['wa_account']}</span>
-        </div>
-        <div class="tech-item">
-          <span class="tech-label">ID de Cuenta Zender</span>
-          <span class="tech-value"><code>{UNO_WA_ACCOUNT or 'N/A'}</code></span>
-        </div>
-        <div class="tech-item">
-          <span class="tech-label">Modelo de IA</span>
-          <span class="tech-value">Gemini 2.5 Flash</span>
-        </div>
-      </div>
-    </div>
-
     <div class="footer">
-      SISTEMA OPERATIVO // CONEXIÓN ESTABLE // LISTO PARA RECIBIR EVENTOS
+      Endpoint: <code>{safe_endpoint}</code>
     </div>
   </div>
 </body>
