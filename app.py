@@ -1799,7 +1799,8 @@ def handle_whatsapp(data):
         send_message(phone, hint, menu_text())
         return
     if text and is_menu_request(text):
-        reset_session(phone)
+        session['state'] = 'idle'
+        save_session(phone, session)
         send_message(phone, hint, menu_text())
         return
     if not text and attachment:
