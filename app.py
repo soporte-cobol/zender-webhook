@@ -1522,7 +1522,7 @@ def handle_fallback_ai(phone, hint, text, session):
     answer = call_gemini_api(prompt)
     if answer:
         # Enviamos directamente a uno_send para evitar que enhance_with_ai lo recorte
-        uno_send(phone, hint, answer)
+        uno_send(phone, answer, hint)
         return
 
     # RESPALDO ESTÁTICO (Solo si la IA falla)
