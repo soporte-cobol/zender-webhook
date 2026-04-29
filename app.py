@@ -2201,7 +2201,61 @@ def prefers_html_response():
     return 'text/html' in accept or 'application/xhtml+xml' in accept
 
 
+def get_system_health():
+    """Realiza un chequeo rápido de los servicios externos."""
+    health = {
+        'gemini': {'status': 'Checking...', 'color': 'var(--muted)'},
+        'woo': {'status': 'Checking...', 'color': 'var(--muted)'},
+        'zender': {'status': 'Checking...', 'color': 'var(--muted)'},
+        'wa_account': UNO_WA_ACCOUNT or 'No configurada'
+    }
+    
+    # 1. Chequeo Gemini
+    if not GEMINI_API_KEY:
+        health['gemini'] = {'status': 'LLAVE FALTANTE', 'color': '#ff5e5e'}
+    else:
+        try:
+            # Una llamada muy pequeña para validar la API Key
+            test = call_gemini_api("responde solo 'ok'")
+            if test:
+                health['gemini'] = {'status': 'ACTIVO', 'color': '#37f0c2'}
+            else:
+                health['gemini'] = {'status': 'SIN RESPUESTA', 'color': '#ffbc5e'}
+        except Exception:
+            health['gemini'] = {'status': 'ERROR API', 'color': '#ff5e5e'}
+
+    # 2. Chequeo WooCommerce
+    if not WC_BASE_URL:
+        health['woo'] = {'status': 'URL FALTANTE', 'color': '#ff5e5e'}
+    else:
+        try:
+            res = requests.get(WC_BASE_URL, timeout=5)
+            if res.status_code < 500: # Si responde algo (incluso 401) el servidor está vivo
+                health['woo'] = {'status': 'CONECTADO', 'color': '#37f0c2'}
+            else:
+                health['woo'] = {'status': 'ERROR SERVER', 'color': '#ff5e5e'}
+        except Exception:
+            health['woo'] = {'status': 'TIMEOUT', 'color': '#ffbc5e'}
+
+    # 3. Chequeo Zender (UNO API)
+    if not UNO_API_BASE:
+        health['zender'] = {'status': 'BASE FALTANTE', 'color': '#ff5e5e'}
+    else:
+        try:
+            # Intentamos ver si el endpoint responde
+            res = requests.get(f"{UNO_API_BASE}/get/wa.accounts?secret={UNO_API_SECRET}&limit=1", timeout=5)
+            if res.status_code == 200:
+                health['zender'] = {'status': 'ACTIVO', 'color': '#37f0c2'}
+            else:
+                health['zender'] = {'status': 'ERROR API', 'color': '#ff5e5e'}
+        except Exception:
+            health['zender'] = {'status': 'OFFLINE', 'color': '#ffbc5e'}
+            
+    return health
+
+
 def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
+    health = get_system_health()
     safe_title = html.escape(title)
     safe_subtitle = html.escape(subtitle)
     safe_endpoint = html.escape(endpoint_path)
@@ -2218,12 +2272,12 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{safe_title}</title>
+  <title>{safe_title} | Dashboard</title>
   <style>
     :root {{
-      --bg: #08111f;
-      --panel: rgba(9, 18, 34, 0.92);
-      --line: rgba(255, 255, 255, 0.10);
+      --bg: #050a14;
+      --panel: rgba(13, 22, 38, 0.95);
+      --line: rgba(255, 255, 255, 0.08);
       --text: #ecf7ff;
       --muted: #9ab0c3;
       --accent: {accent};
@@ -2232,139 +2286,102 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
     body {{
       margin: 0;
       min-height: 100vh;
-      font-family: Consolas, "Courier New", monospace;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       color: var(--text);
-      background:
-        radial-gradient(circle at top left, rgba(55, 240, 194, 0.18), transparent 30%),
-        radial-gradient(circle at top right, rgba(83, 161, 255, 0.16), transparent 26%),
-        linear-gradient(180deg, #050b15 0%, #0a1322 100%);
+      background: linear-gradient(180deg, #050b15 0%, #0a1322 100%);
       display: grid;
       place-items: center;
-      padding: 24px;
+      padding: 20px;
     }}
     .panel {{
-      width: min(920px, 100%);
+      width: min(850px, 100%);
       border: 1px solid var(--line);
-      border-radius: 22px;
+      border-radius: 24px;
       background: var(--panel);
-      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
       overflow: hidden;
     }}
-    .header {{
-      padding: 22px 24px 12px;
-      border-bottom: 1px solid var(--line);
+    .header {{ padding: 30px 30px 10px; text-align: center; }}
+    h1 {{ margin: 0; font-size: 1.8rem; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }}
+    p {{ color: var(--muted); margin-top: 10px; font-size: 0.95rem; }}
+    .grid {{
+      padding: 30px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
     }}
-    .badge {{
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
+    .card {{
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 20px;
     }}
-    .dot {{
+    .card-label {{ display: block; font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }}
+    .card-value {{ font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 12px; }}
+    .status-dot {{
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 18px var(--accent);
+      box-shadow: 0 0 12px currentColor;
+      animation: pulse 2s infinite;
     }}
-    .content {{
-      padding: 24px;
-      display: grid;
-      gap: 22px;
-    }}
-    pre {{
-      margin: 0;
-      padding: 20px;
-      overflow: auto;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: rgba(0, 0, 0, 0.24);
-      color: var(--accent);
-      font-size: clamp(11px, 1.8vw, 16px);
-      line-height: 1.28;
-    }}
-    h1 {{
-      margin: 0;
-      font-size: clamp(28px, 5vw, 46px);
-      line-height: 1.04;
-    }}
-    p {{
-      margin: 0;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.7;
-    }}
-    .grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 14px;
-    }}
-    .card {{
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      padding: 16px;
-      background: rgba(255, 255, 255, 0.03);
-    }}
-    .label {{
-      display: block;
-      margin-bottom: 8px;
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-    }}
-    .value {{
-      font-size: 16px;
-      font-weight: 700;
-      word-break: break-word;
-    }}
-    code {{
-      color: var(--accent);
-      font-size: 14px;
-    }}
+    @keyframes pulse {{ 0%, 100% {{ opacity: 1; }} 50% {{ opacity: 0.4; }} }}
     .footer {{
-      padding: 0 24px 24px;
-      color: var(--muted);
-      font-size: 13px;
+      padding: 20px 30px 30px;
+      border-top: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.2);
     }}
+    .info-row {{ display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.85rem; align-items: center; }}
+    .info-label {{ color: var(--muted); }}
+    code {{ color: var(--accent); background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; }}
+    pre {{ font-size: 8px; color: var(--accent); opacity: 0.2; text-align: center; margin-bottom: 10px; }}
   </style>
 </head>
 <body>
-  <main class="panel">
+  <div class="panel">
     <div class="header">
-      <span class="badge"><span class="dot"></span>Servicio activo</span>
-    </div>
-    <div class="content">
       <pre>{safe_banner}</pre>
-      <div>
-        <h1>{safe_title}</h1>
-        <p>{safe_subtitle}</p>
+      <h1>{safe_title}</h1>
+      <p>{safe_subtitle}</p>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <span class="card-label">Motor IA Gemini</span>
+        <div class="card-value">
+          <div class="status-dot" style="color: {health['gemini']['color']}"></div>
+          {health['gemini']['status']}
+        </div>
       </div>
-      <div class="grid">
-        <section class="card">
-          <span class="label">Estado</span>
-          <div class="value">OK</div>
-        </section>
-        <section class="card">
-          <span class="label">Endpoint</span>
-          <div class="value"><code>{safe_endpoint}</code></div>
-        </section>
-        <section class="card">
-          <span class="label">Método esperado</span>
-          <div class="value">POST</div>
-        </section>
+      <div class="card">
+        <span class="card-label">Tienda WooCommerce</span>
+        <div class="card-value">
+          <div class="status-dot" style="color: {health['woo']['color']}"></div>
+          {health['woo']['status']}
+        </div>
+      </div>
+      <div class="card">
+        <span class="card-label">API Zender WhatsApp</span>
+        <div class="card-value">
+          <div class="status-dot" style="color: {health['zender']['color']}"></div>
+          {health['zender']['status']}
+        </div>
       </div>
     </div>
     <div class="footer">
-      Si ves esta pantalla en el navegador, la app está encendida y lista para recibir webhooks.
+      <div class="info-row">
+        <span class="info-label">Webhook:</span>
+        <code>{safe_endpoint}</code>
+      </div>
+      <div class="info-row">
+        <span class="info-label">WhatsApp:</span>
+        <span style="font-weight: 600;">{health['wa_account']}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Estado:</span>
+        <span style="color: var(--accent); font-weight: bold;">● OPERATIVO</span>
+      </div>
     </div>
-  </main>
+  </div>
 </body>
 </html>"""
     return Response(page, mimetype='text/html')
