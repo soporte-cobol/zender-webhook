@@ -1685,7 +1685,7 @@ def handle_product(phone, hint, text, session):
 def handle_variation(phone, hint, text, session):
     selected = pick_variation(text, session.get('last_variations', []))
     if not selected:
-    handle_fallback_ai(phone, hint, text, session)
+        handle_fallback_ai(phone, hint, text, session)
         return
     session['variation'] = selected
     session['state'] = 'confirm_buy'
