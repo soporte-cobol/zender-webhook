@@ -1,7 +1,7 @@
 ¡Hola! Bienvenido al Bot Inteligente para Zender + WooCommerce 🤖✨
 
 Este proyecto ha evolucionado para ser una solución de ventas "Plug & Play". 
-Ahora cuenta con un motor de Inteligencia Artificial (Gemini) que genera respuestas naturales y persuasivas, y un carrito de compras avanzado que soporta múltiples productos simultáneos.
+Ahora cuenta con un motor de Inteligencia Artificial (Gemini) que genera respuestas naturales y persuasivas, y un carrito de compras avanzado que permite al usuario agregar, quitar, cambiar cantidades o vaciar el pedido con lenguaje natural (ej: "quiero 3 unidades", "quita la máquina", "vaciar carrito").
 
 Para comenzar, por favor dirígete al archivo principal de documentación:
 👉 README.md

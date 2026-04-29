@@ -107,6 +107,15 @@ Tu bot ahora tiene un carrito real. Prueba escribiéndole a tu número de WhatsA
 3. Elige la variación y di la cantidad.
 4. Puedes pedir **otro producto** distinto. ¡El bot organizará todo en un carrito con líneas separadoras `--------` y sumará todo correctamente!
 
+### 🎮 Control Total del Carrito
+Tus clientes tienen el control total de su compra mediante lenguaje natural:
+- **Agregar más productos:** Simplemente escribiendo el nombre del producto en cualquier momento del flujo.
+- **Ajustar cantidades:** Escribiendo frases como "quiero 3 unidades", "sube a 5" o "ponme solo 1".
+- **Quitar productos:** Escribiendo "quita la máquina" o "ya no quiero el termo".
+- **Vaciar carrito:** Escribiendo "borrar carrito" o "vaciar pedido".
+- **Empezar de cero:** Escribiendo **REINICIAR** en cualquier momento.
+
+
 ---
 
 ### 🎉 ¡Felicidades, tienes tu bot listo!
