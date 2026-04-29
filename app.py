@@ -1520,7 +1520,17 @@ def handle_fallback_ai(phone, hint, text, session):
     state = session.get('state', 'idle')
     app.logger.info('--- INTENTO DE SOPORTE IA (HTTP) --- Estado: %s, Pregunta: %s', state, text)
     
-    prompt = f"Eres una experta en ventas. Info:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde DIRECTO. NO menciones el nombre de la tienda a menos que sea vital. Empieza con la solución. Explica detalladamente sobre seguridad, pagos y envíos.\nPregunta: {text}"
+    prompt = f"""Eres una experta en ventas de una tienda virtual. Info:
+{get_shop_info()}
+
+INSTRUCCIÓN:
+1. Responde DIRECTO a la duda.
+2. Usa EMOJIS temáticos (💳, 💰, 🚚, 💵, ✨).
+3. NO uses tantos asteriscos (**), prefiere una lista limpia.
+4. NO menciones el nombre de la tienda.
+5. Longitud: Máximo 3 párrafos cortos. Sé persuasiva pero breve.
+
+Pregunta: {text}"""
     
     answer = call_gemini_api(prompt)
     if answer:
