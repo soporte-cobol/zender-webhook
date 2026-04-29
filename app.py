@@ -1464,10 +1464,19 @@ def get_shop_info():
 
 def handle_fallback_ai(phone, hint, text, session):
     if not GEMINI_API_KEY:
-        send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías o prueba con el nombre exacto del producto.')
+        send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías o prueba con el nombre exacto.')
         return
         
-    app.logger.info('Llamando a IA de soporte para: %s', text)
+    state = session.get('state', 'idle')
+    app.logger.info('Llamando a IA de soporte (Estado: %s) para: %s', state, text)
+    
+    # Construir recordatorio según el estado
+    reminder = ""
+    if state == 'name': reminder = "Después de responder, recuérdale que aún necesito su nombre completo."
+    elif state == 'city': reminder = "Después de responder, recuérdale que aún necesito saber la ciudad de entrega."
+    elif state == 'address1': reminder = "Después de responder, recuérdale que aún necesito su dirección."
+    elif state == 'confirm_buy': reminder = "Después de responder, recuérdale que si desea confirmar el pedido debe escribir COMPRAR."
+
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         context = f"""Eres un vendedor estrella de la tienda "Online Compra Fácil" en Colombia. 
@@ -1477,11 +1486,12 @@ INFORMACIÓN REAL DE LA TIENDA:
 {get_shop_info()}
 
 REGLAS DE RESPUESTA:
-1. Responde de forma muy breve y amable (estilo chat de WhatsApp).
-2. Usa emojis para que el mensaje sea visual.
-3. Si el cliente pregunta por un producto que no logramos identificar, dile que puede escribir MENU para ver el catálogo o que te diga el nombre del producto.
-4. NO inventes información. Si no sabes algo, invita al cliente a esperar a un asesor humano.
-5. Mantén siempre el foco en ayudar al cliente a comprar.
+1. Responde de forma muy breve (máximo 2-3 frases) y amable.
+2. Usa emojis.
+3. {reminder}
+4. Si el cliente pregunta por un producto que no logramos identificar, dile que puede escribir MENU para ver el catálogo.
+5. NO inventes información.
+6. Mantén siempre el foco en ayudar al cliente a comprar.
 
 Pregunta del cliente: {text}
 """
@@ -1667,7 +1677,7 @@ def handle_product(phone, hint, text, session):
             save_session(phone, session)
             send_message(phone, hint, list_text(f"🔎 También encontré estos productos para '{candidate}':", products))
             return
-        send_message(phone, hint, 'Escribe el número del producto que quieres ver, por ejemplo 1 o 2, o envíame el nombre del producto.')
+        handle_fallback_ai(phone, hint, text, session)
         return
     open_product_detail(phone, hint, session, product)
 
@@ -1675,7 +1685,7 @@ def handle_product(phone, hint, text, session):
 def handle_variation(phone, hint, text, session):
     selected = pick_variation(text, session.get('last_variations', []))
     if not selected:
-        send_message(phone, hint, 'No pude identificar la variación. Escríbeme el número de la opción o el color que prefieres.')
+    handle_fallback_ai(phone, hint, text, session)
         return
     session['variation'] = selected
     session['state'] = 'confirm_buy'
@@ -1739,7 +1749,7 @@ def handle_confirm(phone, hint, text, session):
     if message in BUY_WORDS or message.startswith('comprar'):
         begin_checkout(phone, hint, text, session)
         return
-    send_message(phone, hint, 'Si quieres cerrar la compra, escribe COMPRAR. Si prefieres volver al inicio, escribe MENU.')
+    handle_fallback_ai(phone, hint, text, session)
 
 
 def handle_checkout(phone, hint, text, session):
