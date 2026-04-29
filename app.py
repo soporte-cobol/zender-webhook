@@ -1497,7 +1497,7 @@ def call_gemini_api(prompt):
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 800}
+        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 1024}
     }
     
     try:
@@ -1517,7 +1517,7 @@ def handle_fallback_ai(phone, hint, text, session):
     state = session.get('state', 'idle')
     app.logger.info('--- INTENTO DE SOPORTE IA (HTTP) --- Estado: %s, Pregunta: %s', state, text)
     
-    prompt = f"Eres la asistente estrella de ventas de 'Online Compra Fácil' en Colombia. Info:\n{get_shop_info()}\nREGLA: Responde de forma natural, cálida y persuasiva (3-4 frases). Usa emojis. Si el cliente pregunta por envíos o pagos, dale detalles claros. Pregunta del cliente: {text}"
+    prompt = f"Eres la experta en ventas de 'Online Compra Fácil' en Colombia. Info de la tienda:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde de forma detallada, persuasiva y extensa. El cliente tiene dudas y debes convencerlo con argumentos claros. Usa emojis y párrafos. NO te limites en la longitud, explica bien los beneficios de seguridad y envío.\nPregunta del cliente: {text}"
     
     answer = call_gemini_api(prompt)
     if answer:
@@ -1606,7 +1606,7 @@ def send_message(phone, account_hint, message, image_url=None):
     app.logger.info('Preparando envío a %s. Imagen: %s', phone, bool(image_url))
     enhanced_message = enhance_with_ai(message)
     
-    app.logger.info('Enviando mensaje final vía UNO API: %s', enhanced_message[:100] + '...')
+    app.logger.info('--- MENSAJE FINAL PARA UNO API ---\n%s\n--- FIN MENSAJE ---', enhanced_message)
     try:
         res = uno_send(phone, enhanced_message, hint=account_hint, image_url=image_url)
         app.logger.info('Mensaje enviado exitosamente. ID: %s', res.get('id') if isinstance(res, dict) else 'ok')
