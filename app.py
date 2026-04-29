@@ -1517,11 +1517,12 @@ def handle_fallback_ai(phone, hint, text, session):
     state = session.get('state', 'idle')
     app.logger.info('--- INTENTO DE SOPORTE IA (HTTP) --- Estado: %s, Pregunta: %s', state, text)
     
-    prompt = f"Eres la experta en ventas de 'Online Compra Fácil' en Colombia. Info de la tienda:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde de forma detallada, persuasiva y extensa. El cliente tiene dudas y debes convencerlo con argumentos claros. Usa emojis y párrafos. NO te limites en la longitud, explica bien los beneficios de seguridad y envío.\nPregunta del cliente: {text}"
+    prompt = f"Eres la experta en ventas de 'Online Compra Fácil'. Info:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde DIRECTAMENTE la duda del cliente. NO saludes, NO digas '¡Hola!', NO seas redundante. Empieza de una vez con la solución. Usa emojis y explica por qué el pago contra entrega es seguro y cómo funcionan los envíos al Cauca.\nPregunta: {text}"
     
     answer = call_gemini_api(prompt)
     if answer:
-        send_message(phone, hint, answer)
+        # Enviamos directamente a uno_send para evitar que enhance_with_ai lo recorte
+        uno_send(phone, hint, answer)
         return
 
     # RESPALDO ESTÁTICO (Solo si la IA falla)
