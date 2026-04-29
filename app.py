@@ -63,7 +63,19 @@ PRICING_RULES_URL = os.getenv('PRICING_RULES_URL', '').strip()
 PRICING_RULES_CACHE_SECONDS = int(os.getenv('PRICING_RULES_CACHE_SECONDS', '300'))
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 if not GEMINI_API_KEY:
-    # Intento de respaldo si el entorno no la cargó
+    # Intento 1: Leer el archivo .env manualmente como texto (más seguro en cPanel)
+    try:
+        if os.path.exists('.env'):
+            with open('.env', 'r') as f:
+                for line in f:
+                    if 'GEMINI_API_KEY=' in line:
+                        GEMINI_API_KEY = line.split('=', 1)[1].strip().strip("'").strip('"')
+                        break
+    except Exception:
+        pass
+
+if not GEMINI_API_KEY:
+    # Intento 2: Usar python-dotenv si está disponible
     try:
         from dotenv import load_dotenv
         load_dotenv()
