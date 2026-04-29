@@ -1518,12 +1518,28 @@ def handle_fallback_ai(phone, hint, text, session):
     state = session.get('state', 'idle')
     app.logger.info('--- INTENTO DE SOPORTE IA (HTTP) --- Estado: %s, Pregunta: %s', state, text)
     
-    prompt = f"Eres la experta de 'Online Compra Fácil'. Info:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde DIRECTO a la duda. NO saludes. Empieza tu respuesta exactamente con: 'Claro que sí, es totalmente seguro porque...'. Explica los beneficios del pago contra entrega y el envío al Cauca de forma extensa y persuasiva.\nPregunta: {text}"
+    prompt = f"Eres una experta en ventas. Info:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde DIRECTO. NO menciones el nombre de la tienda a menos que sea vital. Empieza con la solución. Explica detalladamente sobre seguridad, pagos y envíos.\nPregunta: {text}"
     
     answer = call_gemini_api(prompt)
     if answer:
-        # Enviamos directamente a uno_send para evitar que enhance_with_ai lo recorte
-        uno_send(phone, answer, hint)
+        # Si el mensaje es muy largo, lo dividimos para evitar recortes del sistema
+        if len(answer) > 250:
+            # Intentamos cortar por un punto seguido si existe
+            mid = 250
+            idx = answer.find('. ', 150, 300)
+            if idx != -1:
+                mid = idx + 1
+            
+            part1 = answer[:mid].strip()
+            part2 = answer[mid:].strip()
+            
+            uno_send(phone, part1, hint)
+            if part2:
+                import time
+                time.sleep(1) # Pequeña pausa para orden
+                uno_send(phone, part2, hint)
+        else:
+            uno_send(phone, answer, hint)
         return
 
     # RESPALDO ESTÁTICO (Solo si la IA falla)
