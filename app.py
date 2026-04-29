@@ -61,17 +61,21 @@ WC_UPSELL_LIMIT = max(0, int(os.getenv('WC_UPSELL_LIMIT', '2')))
 DEFAULT_COUNTRY = os.getenv('DEFAULT_COUNTRY', 'CO')
 PRICING_RULES_URL = os.getenv('PRICING_RULES_URL', '').strip()
 PRICING_RULES_CACHE_SECONDS = int(os.getenv('PRICING_RULES_CACHE_SECONDS', '300'))
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 if not GEMINI_API_KEY:
-    # Intento de respaldo si load_dotenv falló por alguna razón de ruta
-    from dotenv import load_dotenv
-    load_dotenv()
-    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+    # Intento de respaldo si el entorno no la cargó
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+    except ImportError:
+        pass
 
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
     except Exception as e:
-        print(f"Error configurando Gemini: {e}")
+        app.logger.error(f"Error configurando Gemini: {e}")
 
 DB_LOCK = threading.Lock()
 CATEGORY_CACHE = {}
