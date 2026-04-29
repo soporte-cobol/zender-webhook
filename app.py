@@ -1209,7 +1209,7 @@ def card_text(product, variation=None, prompt=None, category_key=None):
 
 
 def checkout_edit_hint():
-    return "✏️ Si quieres ajustar tu pedido, puedes escribir por ejemplo 'quiero 3 unidades', 'súbelo a 5' o 'no quiero este producto'."
+    return "✏️ Si quieres agregar otro producto, escríbeme su nombre. También puedes ajustar cantidades (ej: 'quiero 3 unidades') o escribir MENU para ver el catálogo."
 
 
 def cart_totals(cart, city=''):
@@ -1686,6 +1686,24 @@ def handle_checkout(phone, hint, text, session):
     if wants_remove_current_item(text, session):
         remove_current_item(phone, hint, session)
         return
+    
+    # Prioridad: Si el usuario menciona un nuevo producto o categoría, salimos del flujo de checkout
+    if len(message) >= 4:
+        # No buscamos si parece solo una respuesta de nombre o ciudad corta
+        if session['state'] not in {'name', 'city'} or any(token in message for token in CUSTOMER_SERVICE_TOKENS) or len(message) > 15:
+            direct_product, matched_products = direct_product_match(text)
+            if direct_product:
+                session['last_products'] = matched_products or [direct_product]
+                open_product_detail(phone, hint, session, direct_product)
+                return
+            
+            category_key = category_for(text)
+            if category_key:
+                session['state'] = 'idle'
+                save_session(phone, session)
+                handle_idle(phone, hint, text, session)
+                return
+
     if session['state'] != 'qty':
         quantity = checkout_quantity_update(text, session.get('quantity', 1), allow_plain=False)
         if quantity:
