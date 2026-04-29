@@ -2201,59 +2201,6 @@ def prefers_html_response():
     return 'text/html' in accept or 'application/xhtml+xml' in accept
 
 
-def get_system_health():
-    """Realiza un chequeo rápido de los servicios externos."""
-    health = {
-        'gemini': {'status': 'Checking...', 'color': 'var(--muted)'},
-        'woo': {'status': 'Checking...', 'color': 'var(--muted)'},
-        'zender': {'status': 'Checking...', 'color': 'var(--muted)'},
-        'wa_account': UNO_WA_ACCOUNT or 'No configurada'
-    }
-    
-    # 1. Chequeo Gemini
-    if not GEMINI_API_KEY:
-        health['gemini'] = {'status': 'LLAVE FALTANTE', 'color': '#ff5e5e'}
-    else:
-        try:
-            # Una llamada muy pequeña para validar la API Key
-            test = call_gemini_api("responde solo 'ok'")
-            if test:
-                health['gemini'] = {'status': 'ACTIVO', 'color': '#37f0c2'}
-            else:
-                health['gemini'] = {'status': 'SIN RESPUESTA', 'color': '#ffbc5e'}
-        except Exception:
-            health['gemini'] = {'status': 'ERROR API', 'color': '#ff5e5e'}
-
-    # 2. Chequeo WooCommerce
-    if not WC_BASE_URL:
-        health['woo'] = {'status': 'URL FALTANTE', 'color': '#ff5e5e'}
-    else:
-        try:
-            res = requests.get(WC_BASE_URL, timeout=5)
-            if res.status_code < 500: # Si responde algo (incluso 401) el servidor está vivo
-                health['woo'] = {'status': 'CONECTADO', 'color': '#37f0c2'}
-            else:
-                health['woo'] = {'status': 'ERROR SERVER', 'color': '#ff5e5e'}
-        except Exception:
-            health['woo'] = {'status': 'TIMEOUT', 'color': '#ffbc5e'}
-
-    # 3. Chequeo Zender (UNO API)
-    if not UNO_API_BASE:
-        health['zender'] = {'status': 'BASE FALTANTE', 'color': '#ff5e5e'}
-    else:
-        try:
-            # Intentamos ver si el endpoint responde
-            res = requests.get(f"{UNO_API_BASE}/get/wa.accounts?secret={UNO_API_SECRET}&limit=1", timeout=5)
-            if res.status_code == 200:
-                health['zender'] = {'status': 'ACTIVO', 'color': '#37f0c2'}
-            else:
-                health['zender'] = {'status': 'ERROR API', 'color': '#ff5e5e'}
-        except Exception:
-            health['zender'] = {'status': 'OFFLINE', 'color': '#ffbc5e'}
-            
-    return health
-
-
 def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
     safe_title = html.escape(title)
     safe_subtitle = html.escape(subtitle)
@@ -2283,92 +2230,141 @@ def render_status_page(title, subtitle, endpoint_path, accent='#37f0c2'):
     }}
     * {{ box-sizing: border-box; }}
     body {{
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
       margin: 0;
-      padding: 1.5rem;
+      min-height: 100vh;
+      font-family: Consolas, "Courier New", monospace;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(55, 240, 194, 0.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(83, 161, 255, 0.16), transparent 26%),
+        linear-gradient(180deg, #050b15 0%, #0a1322 100%);
+      display: grid;
+      place-items: center;
+      padding: 24px;
     }}
     .panel {{
-      background: var(--panel);
+      width: min(920px, 100%);
       border: 1px solid var(--line);
-      border-radius: 1rem;
-      padding: 3rem;
-      width: 100%;
-      max-width: 600px;
-      text-align: center;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      border-radius: 22px;
+      background: var(--panel);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
     }}
-    .banner {{
-      font-family: monospace;
-      color: var(--accent);
-      font-size: 10px;
-      line-height: 1.2;
-      white-space: pre;
-      margin-bottom: 2rem;
-      display: inline-block;
-      text-align: left;
+    .header {{
+      padding: 22px 24px 12px;
+      border-bottom: 1px solid var(--line);
     }}
-    h1 {{
-      font-size: 1.875rem;
-      font-weight: 700;
-      margin: 0 0 0.5rem;
-      letter-spacing: -0.025em;
-    }}
-    p {{
-      color: var(--muted);
-      margin: 0 0 2rem;
-    }}
-    .status {{
+    .badge {{
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      background: rgba(55, 240, 194, 0.1);
-      color: var(--accent);
-      padding: 0.5rem 1rem;
-      border-radius: 9999px;
-      font-weight: 600;
-      font-size: 0.875rem;
-      border: 1px solid rgba(55, 240, 194, 0.2);
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
     }}
     .dot {{
-      width: 0.5rem;
-      height: 0.5rem;
-      background: currentColor;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      box-shadow: 0 0 10px currentColor;
+      background: var(--accent);
+      box-shadow: 0 0 18px var(--accent);
+    }}
+    .content {{
+      padding: 24px;
+      display: grid;
+      gap: 22px;
+    }}
+    pre {{
+      margin: 0;
+      padding: 20px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(0, 0, 0, 0.24);
+      color: var(--accent);
+      font-size: clamp(11px, 1.8vw, 16px);
+      line-height: 1.28;
+    }}
+    h1 {{
+      margin: 0;
+      font-size: clamp(28px, 5vw, 46px);
+      line-height: 1.04;
+    }}
+    p {{
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.7;
+    }}
+    .grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }}
+    .card {{
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.03);
+    }}
+    .label {{
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }}
+    .value {{
+      font-size: 16px;
+      font-weight: 700;
+      word-break: break-word;
+    }}
+    code {{
+      color: var(--accent);
+      font-size: 14px;
     }}
     .footer {{
-      margin-top: 2rem;
-      padding-top: 2rem;
-      border-top: 1px solid var(--line);
-      font-size: 0.875rem;
-    }}
-    .footer code {{
-      background: rgba(0, 0, 0, 0.2);
-      padding: 0.25rem 0.5rem;
-      border-radius: 0.25rem;
-      color: var(--accent);
+      padding: 0 24px 24px;
+      color: var(--muted);
+      font-size: 13px;
     }}
   </style>
 </head>
 <body>
-  <div class="panel">
-    <div class="banner">{safe_banner}</div>
-    <h1>{safe_title}</h1>
-    <p>{safe_subtitle}</p>
-    <div class="status">
-      <div class="dot"></div>
-      Activo
+  <main class="panel">
+    <div class="header">
+      <span class="badge"><span class="dot"></span>Servicio activo</span>
+    </div>
+    <div class="content">
+      <pre>{safe_banner}</pre>
+      <div>
+        <h1>{safe_title}</h1>
+        <p>{safe_subtitle}</p>
+      </div>
+      <div class="grid">
+        <section class="card">
+          <span class="label">Estado</span>
+          <div class="value">OK</div>
+        </section>
+        <section class="card">
+          <span class="label">Endpoint</span>
+          <div class="value"><code>{safe_endpoint}</code></div>
+        </section>
+        <section class="card">
+          <span class="label">Método esperado</span>
+          <div class="value">POST</div>
+        </section>
+      </div>
     </div>
     <div class="footer">
-      Endpoint: <code>{safe_endpoint}</code>
+      Si ves esta pantalla en el navegador, la app está encendida y lista para recibir webhooks.
     </div>
-  </div>
+  </main>
 </body>
 </html>"""
     return Response(page, mimetype='text/html')
