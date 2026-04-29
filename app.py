@@ -1492,8 +1492,8 @@ def call_gemini_api(prompt):
     if not GEMINI_API_KEY:
         return None
     
-    # Usamos Gemini 2.0 Flash (confirmado por diagnóstico como disponible)
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    # Usamos Gemini 2.5 Flash (el modelo más reciente en tu lista de disponibles)
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
