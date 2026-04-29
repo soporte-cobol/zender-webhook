@@ -1476,6 +1476,22 @@ def get_shop_info():
 
 
 def handle_fallback_ai(phone, hint, text, session):
+    message_norm = norm(text)
+    
+    # RESPALDO POR PALABRAS CLAVE (Si la IA falla o para velocidad)
+    payment_keywords = {'pago', 'pagar', 'nequi', 'daviplata', 'wompi', 'tarjeta', 'pse', 'bancolombia', 'efectivo', 'credito', 'cuotas', 'corresponsal'}
+    shipping_keywords = {'envio', 'mandar', 'llega', 'recibo', 'tiempo', 'entrega', 'bogota', 'nacional', 'cauca', 'medellin', 'cali', 'domicilio'}
+    
+    if any(k in message_norm for k in payment_keywords):
+        app.logger.info('Respondiendo duda de pago por palabra clave.')
+        send_message(phone, hint, "💳 *Métodos de pago:*\n• WhatsApp: Pago Contra Entrega en efectivo.\n• Web (Wompi): Nequi, Daviplata, PSE, Bancolombia y Tarjetas (Visa/Master).\n• Crédito: Bancolombia, Nequi y SU+ Pay.")
+        return
+
+    if any(k in message_norm for k in shipping_keywords):
+        app.logger.info('Respondiendo duda de envío por palabra clave.')
+        send_message(phone, hint, "🚚 *Envíos:*\n• Cobertura nacional en Colombia.\n• Tiempos: Si compras antes del mediodía, llega el mismo día (en la tarde/mañana siguiente resto del país).\n• Costos: Bogotá $8.000, ciudades principales $12.000, nacional $20.000.")
+        return
+
     if not GEMINI_API_KEY:
         send_message(phone, hint, 'No logré identificar esa categoría o ese producto. Escribe MENU para ver categorías.')
         return
@@ -1483,26 +1499,16 @@ def handle_fallback_ai(phone, hint, text, session):
     state = session.get('state', 'idle')
     app.logger.info('--- INTENTO DE SOPORTE IA --- Estado: %s, Pregunta: %s', state, text)
     
-    reminder = ""
-    if state == 'name': reminder = "Recuérdale que aún necesito su nombre."
-    elif state == 'city': reminder = "Recuérdale que aún necesito la ciudad."
-    elif state == 'address1': reminder = "Recuérdale que aún necesito la dirección."
-    elif state == 'confirm_buy': reminder = "Dile que debe escribir COMPRAR para confirmar."
-
+    # ... resto de la lógica de IA ...
     try:
-        model = genai.GenerativeModel('gemini-1.0-pro')
-        prompt = f"Eres el soporte de 'Online Compra Fácil'. Info:\n{get_shop_info()}\nREGLA: Respuesta corta, emojis, {reminder}. Pregunta: {text}"
-        
+        model = genai.GenerativeModel('gemini-pro') # Volvemos a probar pro por si acaso
+        prompt = f"Eres el soporte de 'Online Compra Fácil'. Info:\n{get_shop_info()}\nREGLA: Respuesta corta, emojis. Pregunta: {text}"
         response = model.generate_content(prompt)
         if response and response.text:
-            answer = response.text.strip()
-            app.logger.info('Soporte IA respondió exitosamente.')
-            send_message(phone, hint, answer)
+            send_message(phone, hint, response.text.strip())
             return
-        else:
-            app.logger.warning('Soporte IA devolvió respuesta vacía.')
     except Exception as exc:
-        app.logger.error('ERROR CRÍTICO EN SOPORTE IA: %s', exc, exc_info=True)
+        app.logger.error('ERROR EN SOPORTE IA: %s', exc)
         
     send_message(phone, hint, 'No logré identificar el producto o responder tu duda. Por favor, escribe MENU o el nombre exacto del producto.')
 
