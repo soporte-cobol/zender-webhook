@@ -1492,8 +1492,8 @@ def call_gemini_api(prompt):
     if not GEMINI_API_KEY:
         return None
     
-    # Usamos Gemini 2.5 Flash (el modelo más reciente en tu lista de disponibles)
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # Usamos Gemini 2.0 Flash-Lite (más rápido y estable para chats largos)
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash-lite:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
@@ -1517,7 +1517,7 @@ def handle_fallback_ai(phone, hint, text, session):
     state = session.get('state', 'idle')
     app.logger.info('--- INTENTO DE SOPORTE IA (HTTP) --- Estado: %s, Pregunta: %s', state, text)
     
-    prompt = f"Eres la experta en ventas de 'Online Compra Fácil'. Info:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde DIRECTAMENTE la duda del cliente. NO saludes, NO digas '¡Hola!', NO seas redundante. Empieza de una vez con la solución. Usa emojis y explica por qué el pago contra entrega es seguro y cómo funcionan los envíos al Cauca.\nPregunta: {text}"
+    prompt = f"Eres la experta de 'Online Compra Fácil'. Info:\n{get_shop_info()}\n\nINSTRUCCIÓN: Responde DIRECTO a la duda. NO saludes. Empieza tu respuesta exactamente con: 'Claro que sí, es totalmente seguro porque...'. Explica los beneficios del pago contra entrega y el envío al Cauca de forma extensa y persuasiva.\nPregunta: {text}"
     
     answer = call_gemini_api(prompt)
     if answer:
