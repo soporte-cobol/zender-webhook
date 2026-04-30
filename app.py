@@ -1024,26 +1024,60 @@ def wc_request(method, path, params=None, payload=None):
 def uno_send(recipient, message, hint=None, image_url=None):
     require_uno(hint)
     account = outbound_account(hint)
-    fields = [
-        ('secret', (None, UNO_API_SECRET)),
-        ('account', (None, account)),
-        ('recipient', (None, recipient)),
-        ('message', (None, message)),
-        ('priority', (None, '1')),
-    ]
-    if image_url:
-        fields.extend([('type', (None, 'media')), ('media_url', (None, image_url)), ('media_type', (None, 'image'))])
-    else:
-        fields.append(('type', (None, 'text')))
-    app.logger.info('--- LLAMADA API ZENDER ---\nRecipient: %s\nMessage (Len: %d): %s\n---------------------------', recipient, len(message), message)
-    response = requests.post(f"{UNO_API_BASE}/send/whatsapp", files=fields, timeout=REQUEST_TIMEOUT)
-    if response.status_code >= 400:
-        app.logger.error('Error en API Zender: %s', response.text)
-        raise IntegrationError(f"UNO send error {response.status_code}: {response.text[:250]}")
-    payload = response.json()
-    if payload.get('status') != 200:
-        raise IntegrationError(payload.get('message') or 'UNO send failed.')
-    return payload
+    
+    # Fragmentación de mensajes largos (aprox 1000 caracteres)
+    def split_text(text, limit=1000):
+        if len(text) <= limit:
+            return [text]
+        chunks = []
+        while text:
+            if len(text) <= limit:
+                chunks.append(text)
+                break
+            # Intentar cortar por salto de línea doble, luego simple, luego espacio
+            idx = text.rfind('\n\n', 0, limit)
+            if idx == -1:
+                idx = text.rfind('\n', 0, limit)
+            if idx == -1:
+                idx = text.rfind(' ', 0, limit)
+            if idx == -1:
+                idx = limit
+            
+            chunks.append(text[:idx].strip())
+            text = text[idx:].strip()
+        return chunks
+
+    message_chunks = split_text(message)
+    last_res = None
+
+    for i, chunk in enumerate(message_chunks):
+        fields = [
+            ('secret', (None, UNO_API_SECRET)),
+            ('account', (None, account)),
+            ('recipient', (None, recipient)),
+            ('message', (None, chunk)),
+            ('priority', (None, '1')),
+        ]
+        # La imagen solo se envía con el primer fragmento
+        if image_url and i == 0:
+            fields.extend([('type', (None, 'media')), ('media_url', (None, image_url)), ('media_type', (None, 'image'))])
+        else:
+            fields.append(('type', (None, 'text')))
+        
+        app.logger.info('--- LLAMADA API ZENDER (Parte %d/%d) ---\nRecipient: %s\nChunk Len: %d\n---------------------------', i+1, len(message_chunks), recipient, len(chunk))
+        
+        try:
+            response = requests.post(f"{UNO_API_BASE}/send/whatsapp", files=fields, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            payload = response.json()
+            if payload.get('status') != 200:
+                app.logger.error('Zender API error: %s', payload.get('message'))
+            last_res = payload
+        except Exception as e:
+            app.logger.error('Error enviando fragmento %d: %s', i, e)
+            if i == 0: raise # Si falla el primero, abortamos
+            
+    return last_res
 
 
 def category_id(key):
@@ -1336,10 +1370,10 @@ def remove_current_item(phone, hint, session):
         if session.get('last_products'):
             session['state'] = 'pick_product'
             save_session(phone, session)
-            send_message(phone, hint, list_text('✅ Quité ese producto de tu pedido. Estos son los productos que estabas viendo:', session['last_products']))
+            send_message(phone, hint, list_text('✅ Quité ese producto de tu pedido. Estos son los productos que estabas viendo:', session['last_products']), skip_ai=True)
             return
         reset_session(phone)
-        send_message(phone, hint, menu_text())
+        send_message(phone, hint, menu_text(), skip_ai=True)
     else:
         # Cart still has items
         session['product'] = cart[-1]['product']
@@ -1399,19 +1433,19 @@ def open_product_detail(phone, hint, session, product):
             session['state'] = 'confirm_buy'
             session['last_variations'] = vars_
             save_session(phone, session)
-            send_message(phone, hint, card_text(latest, vars_[0], '✅ Si deseas continuar con este producto, escribe COMPRAR.', category_key=resolved_category), vars_[0].get('image') or latest.get('image'))
+            send_message(phone, hint, card_text(latest, vars_[0], '✅ Si deseas continuar con este producto, escribe COMPRAR.', category_key=resolved_category), image_url=vars_[0].get('image') or latest.get('image'), skip_ai=True)
             return
         if vars_:
             session['state'] = 'pick_variation'
             session['last_variations'] = vars_
             save_session(phone, session)
-            send_message(phone, hint, card_text(latest, prompt='👇 Te muestro las opciones disponibles para que elijas la que más te guste.', category_key=resolved_category), latest.get('image'))
-            send_message(phone, hint, variation_text(vars_))
+            send_message(phone, hint, card_text(latest, prompt='👇 Te muestro las opciones disponibles para que elijas la que más te guste.', category_key=resolved_category), image_url=latest.get('image'), skip_ai=True)
+            send_message(phone, hint, variation_text(vars_), skip_ai=True)
             return
     session['state'] = 'confirm_buy'
     session['last_variations'] = []
     save_session(phone, session)
-    send_message(phone, hint, card_text(latest, prompt='✅ Si deseas continuar con este producto, escribe COMPRAR.', category_key=resolved_category), latest.get('image'))
+    send_message(phone, hint, card_text(latest, prompt='✅ Si deseas continuar con este producto, escribe COMPRAR.', category_key=resolved_category), image_url=latest.get('image'), skip_ai=True)
 
 
 def create_order(session):
@@ -1616,9 +1650,13 @@ Mensaje original:
     return enhanced if enhanced else message
 
 
-def send_message(phone, account_hint, message, image_url=None):
-    app.logger.info('Preparando envío a %s. Imagen: %s', phone, bool(image_url))
-    enhanced_message = enhance_with_ai(message)
+def send_message(phone, account_hint, message, image_url=None, skip_ai=False):
+    app.logger.info('Preparando envío a %s. Imagen: %s, Skip AI: %s', phone, bool(image_url), skip_ai)
+    
+    if skip_ai:
+        enhanced_message = message
+    else:
+        enhanced_message = enhance_with_ai(message)
     
     app.logger.info('--- MENSAJE FINAL PARA UNO API ---\n%s\n--- FIN MENSAJE ---', enhanced_message)
     try:
@@ -1638,7 +1676,7 @@ def handle_idle(phone, hint, text, session):
     if is_menu_request(text):
         session['state'] = 'idle'
         save_session(phone, session)
-        send_message(phone, hint, menu_text())
+        send_message(phone, hint, menu_text(), skip_ai=True)
         return
     if len(message) >= 6:
         direct_product, matched_products = direct_product_match(text)
@@ -1660,7 +1698,7 @@ def handle_idle(phone, hint, text, session):
         session['product'] = None
         session['variation'] = None
         save_session(phone, session)
-        send_message(phone, hint, list_text(f"Estos son algunos productos de {CATEGORIES[category_key]['label']}:", products))
+        send_message(phone, hint, list_text(f"Estos son algunos productos de {CATEGORIES[category_key]['label']}:", products), skip_ai=True)
         return
     if len(message) >= 3:
         for candidate in search_candidates(text):
@@ -1677,7 +1715,7 @@ def handle_idle(phone, hint, text, session):
             session['variation'] = None
             save_session(phone, session)
             label = candidate if norm(candidate) != norm(text) else clean(text)
-            send_message(phone, hint, list_text(f"🔎 Encontré estos productos para '{label}':", products))
+            send_message(phone, hint, list_text(f"🔎 Encontré estos productos para '{label}':", products), skip_ai=True)
             return
     handle_fallback_ai(phone, hint, text, session)
 
@@ -1709,7 +1747,7 @@ def handle_product(phone, hint, text, session):
             session['product'] = None
             session['variation'] = None
             save_session(phone, session)
-            send_message(phone, hint, list_text(f"🔎 También encontré estos productos para '{candidate}':", products))
+            send_message(phone, hint, list_text(f"🔎 También encontré estos productos para '{candidate}':", products), skip_ai=True)
             return
         handle_fallback_ai(phone, hint, text, session)
         return
@@ -1717,14 +1755,22 @@ def handle_product(phone, hint, text, session):
 
 
 def handle_variation(phone, hint, text, session):
+    message = norm(text)
     selected = pick_variation(text, session.get('last_variations', []))
     if not selected:
+        # Si no eligió variación, revisamos si mencionó otro producto antes de ir a IA
+        if len(message) >= 5:
+            direct_product, matched_products = direct_product_match(text)
+            if direct_product:
+                session['last_products'] = matched_products or [direct_product]
+                open_product_detail(phone, hint, session, direct_product)
+                return
         handle_fallback_ai(phone, hint, text, session)
         return
     session['variation'] = selected
     session['state'] = 'confirm_buy'
     save_session(phone, session)
-    send_message(phone, hint, card_text(session['product'], selected, '✅ Si deseas continuar con este producto, escribe COMPRAR.'), selected.get('image') or session['product'].get('image'))
+    send_message(phone, hint, card_text(session['product'], selected, '✅ Si deseas continuar con este producto, escribe COMPRAR.'), image_url=selected.get('image') or session['product'].get('image'), skip_ai=True)
 
 
 def update_cart(session, quantity):
@@ -1771,7 +1817,7 @@ def handle_confirm(phone, hint, text, session):
     message = norm(text)
     if is_menu_request(text):
         reset_session(phone)
-        send_message(phone, hint, menu_text())
+        send_message(phone, hint, menu_text(), skip_ai=True)
         return
     if wants_remove_current_item(text, session):
         remove_current_item(phone, hint, session)
@@ -1783,6 +1829,15 @@ def handle_confirm(phone, hint, text, session):
     if message in BUY_WORDS or message.startswith('comprar'):
         begin_checkout(phone, hint, text, session)
         return
+    
+    # Si no es "comprar", revisamos si el usuario mencionó otro producto antes de ir a IA
+    if len(message) >= 5:
+        direct_product, matched_products = direct_product_match(text)
+        if direct_product:
+            session['last_products'] = matched_products or [direct_product]
+            open_product_detail(phone, hint, session, direct_product)
+            return
+
     handle_fallback_ai(phone, hint, text, session)
 
 
@@ -1825,7 +1880,7 @@ def handle_checkout(phone, hint, text, session):
             session['quantity'] = quantity
             update_cart(session, quantity)
             save_session(phone, session)
-            send_message(phone, hint, prompt_after_quantity_update(session['state'], session))
+            send_message(phone, hint, prompt_after_quantity_update(session['state'], session), skip_ai=True)
             return
     if session['state'] == 'qty':
         quantity = qty_from(text)
@@ -1896,7 +1951,7 @@ def handle_checkout(phone, hint, text, session):
             send_message(phone, hint, 'No pude crear el pedido en WooCommerce en este momento. Escribe COMPRAR para intentarlo de nuevo o MENU para empezar otra vez.')
             return
         number = order.get('number') or order.get('id')
-        send_message(phone, hint, post_purchase_message(session, number, city=checkout.get('city', '')))
+        send_message(phone, hint, post_purchase_message(session, number, city=checkout.get('city', '')), skip_ai=True)
         reset_session(phone)
 
 
@@ -1912,12 +1967,12 @@ def handle_whatsapp(data):
     message = norm(text)
     if message in RESET_WORDS:
         reset_session(phone)
-        send_message(phone, hint, menu_text())
+        send_message(phone, hint, menu_text(), skip_ai=True)
         return
     if text and is_menu_request(text):
         session['state'] = 'idle'
         save_session(phone, session)
-        send_message(phone, hint, menu_text())
+        send_message(phone, hint, menu_text(), skip_ai=True)
         return
     if not text and attachment:
         send_message(phone, hint, 'Recibí tu archivo. Por ahora puedo ayudarte mejor con texto. Escribe MENU para ver categorías.')
@@ -1941,7 +1996,7 @@ def handle_whatsapp(data):
         handle_checkout(phone, hint, text, session)
         return
     reset_session(phone)
-    send_message(phone, hint, menu_text())
+    send_message(phone, hint, menu_text(), skip_ai=True)
 
 
 def parse_woocommerce_payload():
@@ -2020,7 +2075,7 @@ def maybe_send_latest_customer_note(order):
     if not phone:
         app.logger.info('Skipping latest customer note for order %s because no phone was found.', order_id)
         return False
-    send_message(phone, '', customer_note_message(order_number(order) or order_id, note.get('note') or ''))
+    send_message(phone, '', customer_note_message(order_number(order) or order_id, note.get('note') or ''), skip_ai=True)
     save_order_tracking(order_id, note_key=note_key)
     return True
 
@@ -2043,7 +2098,7 @@ def process_wc_order_event(topic, order):
     if not phone:
         app.logger.info('Skipping WooCommerce status update for order %s because no phone was found.', order_id)
         return False
-    send_message(phone, '', order_status_message(order, status))
+    send_message(phone, '', order_status_message(order, status), skip_ai=True)
     return True
 
 
@@ -2091,7 +2146,7 @@ def process_wc_customer_note(topic, payload):
         app.logger.info('Skipping WooCommerce note for order %s because no phone was found.', order_id)
         return False
     number = note_payload['order_number'] or order_number(order) or order_id
-    send_message(phone, '', customer_note_message(number, note_text))
+    send_message(phone, '', customer_note_message(number, note_text), skip_ai=True)
     save_order_tracking(order_id, note_key=note_key)
     return True
 
